@@ -3,11 +3,14 @@ package main
 import (
 	"fmt"
 	"masters/config"
+	"masters/logger"
 )
 
 func main() {
-	fmt.Println("wfwef")
-	var popa config.Jopa
-	config.Init(&popa)
-	fmt.Println(popa)
+	//os.Chdir("..")
+	logger.LoggerInit()
+
+	var conds config.InitialConds
+	config.CondsInit(&conds)
+	fmt.Println(conds)
 }
