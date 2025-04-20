@@ -65,7 +65,7 @@ func LoggerInit() {
 		TimestampFormat: "15:04:05",
 	})
 
-	Logger.SetLevel(logrus.DebugLevel)
+	Logger.SetLevel(defaults.LogLevel)
 
 	file, err := os.OpenFile(defaults.LogsFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	if err == nil {

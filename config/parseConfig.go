@@ -11,7 +11,9 @@ func CondsInit(conditions *InitialConds) error {
 	var condsInfo []byte
 	var err error
 
-	if condsInfo, err = ReadFile(defaults.ConfigFilePath); err != nil { // TODO: Replace with const
+	if condsInfo, err = ReadFile(defaults.ConfigFilePath); err != nil {
+		logger.Logger.Errorf("Can't read the file: %s", err)
+
 		return err
 	}
 
@@ -26,8 +28,6 @@ func ReadFile(path string) ([]byte, error) {
 	data, err := os.ReadFile(path)
 
 	if err != nil {
-		logger.Logger.Warningf("Ошибка при чтении файла: %s", err)
-
 		return nil, err
 	}
 
