@@ -27,7 +27,7 @@ m(d²x/dt²) + dx' + kx = 0
 
 Общее решение:
 
-<img src="GeneralAnalitSol.jpg" alt="Аналитическое решение для системы пружина-демпфер" width="800">
+<img src="images/GeneralAnalitSol.jpg" alt="Аналитическое решение для системы пружина-демпфер" width="800">
 
 где:
 - d - коэффициент демпфирования
