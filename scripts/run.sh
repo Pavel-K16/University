@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Путь к файлу main.go 
-MAIN_FILE="../main.go"
+MAIN_FILE="../cmd/nsolv.go"
 
 # Компилируем файл main.go
 go build -o myapp "$MAIN_FILE"

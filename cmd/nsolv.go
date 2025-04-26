@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"masters/config"
-	equationsolver "masters/equationSolver"
+	"masters/internal/config"
+	equationsolver "masters/internal/equationSolver"
 )
 
 func main() {

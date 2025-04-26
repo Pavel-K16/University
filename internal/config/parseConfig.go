@@ -2,8 +2,8 @@ package config
 
 import (
 	"encoding/json"
-	"masters/defaults"
-	logger "masters/logger"
+	"masters/internal/defaults"
+	logger "masters/internal/logger"
 	"os"
 )
 

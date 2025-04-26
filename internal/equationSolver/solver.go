@@ -2,9 +2,9 @@ package equationsolver
 
 import (
 	"fmt"
-	"masters/config"
-	aS "masters/equationSolver/analiticalSols"
-	"masters/logger"
+	"masters/internal/config"
+	aS "masters/internal/equationSolver/analiticalSols"
+	"masters/internal/logger"
 	"math"
 )
 

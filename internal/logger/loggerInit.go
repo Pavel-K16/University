@@ -3,14 +3,13 @@ package logger
 import (
 	"fmt"
 	"io"
-	"masters/defaults"
+	"masters/internal/defaults"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/sirupsen/logrus"
 )
-
 
 var levelColors = map[logrus.Level]string{
 	logrus.DebugLevel: "\033[32m", // Cyan

@@ -1,7 +1,7 @@
 package analiticalSols
 
 import (
-	"masters/config"
+	"masters/internal/config"
 	"math"
 )
 
