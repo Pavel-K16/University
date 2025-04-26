@@ -7,12 +7,16 @@ import (
 	"os"
 )
 
+var (
+	log = logger.LoggerInit()
+)
+
 func CondsInit(conditions *InitialConds) error {
 	var condsInfo []byte
 	var err error
 
 	if condsInfo, err = ReadFile(defaults.ConfigFilePath); err != nil {
-		logger.Logger.Errorf("Can't read the file: %s", err)
+		log.Errorf("Can't read the file: %s", err)
 
 		return err
 	}

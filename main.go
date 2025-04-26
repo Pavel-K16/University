@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"masters/config"
 	equationsolver "masters/equationSolver"
-	"masters/logger"
 )
 
 func main() {
 	//os.Chdir("..")
-	logger.LoggerInit()
+	//logger.LoggerInit()
 
 	var conds config.InitialConds
 	config.CondsInit(&conds)

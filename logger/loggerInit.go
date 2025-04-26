@@ -11,7 +11,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var Logger *logrus.Logger
 
 var levelColors = map[logrus.Level]string{
 	logrus.DebugLevel: "\033[32m", // Cyan
@@ -58,21 +57,23 @@ func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	return []byte(msg), nil
 }
 
-func LoggerInit() {
-	Logger = logrus.New()
+func LoggerInit() *logrus.Logger {
+	logger := logrus.New()
 
-	Logger.SetFormatter(&CustomFormatter{
+	logger.SetFormatter(&CustomFormatter{
 		TimestampFormat: "15:04:05",
 	})
 
-	Logger.SetLevel(defaults.LogLevel)
+	logger.SetLevel(defaults.LogLevel)
 
 	file, err := os.OpenFile(defaults.LogsFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	if err == nil {
-		Logger.SetOutput(io.MultiWriter(os.Stdout, file))
+		logger.SetOutput(io.MultiWriter(os.Stdout, file))
 	} else {
-		Logger.SetOutput(os.Stdout)
+		logger.SetOutput(os.Stdout)
 	}
 
-	Logger.SetReportCaller(true)
+	logger.SetReportCaller(true)
+
+	return logger
 }
