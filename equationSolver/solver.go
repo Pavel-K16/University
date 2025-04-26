@@ -3,6 +3,7 @@ package equationsolver
 import (
 	"fmt"
 	"masters/config"
+	aS "masters/equationSolver/analiticalSols"
 	"masters/logger"
 	"math"
 )
@@ -44,15 +45,30 @@ func Solver(conds *config.InitialConds) ([]float64, error) {
 
 	for i := 0; i < n; i++ {
 		if i > 0 {
-			analit := AnalyticalSolution(float64(i) * tau)
+			analit := aS.SpringAnalyticalSolution(float64(i)*tau, conds)
 			A = append(A, analit)
 		}
 
 		//k = k * (-1)
 		//d = d * (-1)
 
-		x := X[i] + tau*(V[i]+(tau/2.0)*V[i])
-		v := V[i] + (k*tau/m)*(V[i]+(tau/2)*(k*X[i]-d*V[i])/m) - (d*tau/m)*(V[i]+(tau/2)*(k*V[i]-d*V[i])/m)
+		k1x := V[i]
+		k1v := -(k*X[i] + d*V[i]) / m
+
+		// Вычисляем значения на половинном шаге
+		xHalf := X[i] + (tau/2)*k1x
+		vHalf := V[i] + (tau/2)*k1v
+
+		// Вычисляем вторые коэффициенты
+		k2x := vHalf
+		k2v := -(k*xHalf + d*vHalf) / m
+
+		// Финальное обновление
+		x := X[i] + tau*k2x
+		v := V[i] + tau*k2v
+
+		//x := X[i] + tau*(V[i]+(tau/2.0)*V[i])
+		//v := V[i] + (k*tau/m)*(V[i]+(tau/2)*(k*X[i]-d*V[i])/m) - (d*tau/m)*(V[i]+(tau/2)*(k*V[i]-d*V[i])/m)
 
 		//x := X[i] + V[i]*tau
 		//v := V[i] - tau*((k*X[i]-d*V[i])/m)
@@ -70,21 +86,4 @@ func Solver(conds *config.InitialConds) ([]float64, error) {
 	log.Debugf("%v", A)
 
 	return X, nil
-}
-
-func AnalyticalSolution(t float64) float64 {
-	// при всех параметрах равных одному
-	sqrt5 := math.Sqrt(5)
-	// e^(-(1+√5)t/2)
-	exponent1 := math.Exp(-0.5 * (1 + sqrt5) * t)
-	// e^(√5 * t)
-	exponent2 := math.Exp(sqrt5 * t)
-
-	// (5 - 3√5) + (5 + 3√5)e^(√5t)
-	numerator := (5 - 3*sqrt5) + (5+3*sqrt5)*exponent2
-
-	// Финальное выражение: (1/10) * e^(-(1+√5)t/2) * (...)
-	result := (1.0 / 10.0) * exponent1 * numerator
-
-	return result
 }
