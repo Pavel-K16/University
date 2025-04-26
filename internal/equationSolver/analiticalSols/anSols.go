@@ -2,7 +2,12 @@ package analiticalSols
 
 import (
 	"masters/internal/config"
+	"masters/internal/logger"
 	"math"
+)
+
+var (
+	log = logger.LoggerInit()
 )
 
 // решение для демфера и пружины
@@ -15,28 +20,28 @@ func GeneralAnalyticalSolution(t float64, conds *config.InitialConds) float64 {
 	x0 := conds.X0
 	v0 := conds.V0
 
-	arg := d*d + 4*k*m
+	arg := (d * d) - (4.0 * k * m)
 
 	sqrtArg := math.Sqrt(arg)
-
+	log.Debugf("ARG: %f", sqrtArg)
 	// Вычисление экспоненциального множителя
-	expFactor := math.Exp(-d * t / (2.0 * m))
-
+	expFactor := math.Exp((-d * t) / (2.0 * m))
+	log.Debugf("EXP: %f", expFactor)
 	// Вычисление аргументов гиперболических функций
 	hyperArg := (sqrtArg * t) / (2.0 * m)
 
 	// Вычисление гиперболических функций
 	cosh := math.Cosh(hyperArg)
+	log.Debugf("cosh: %f", cosh)
 	sinh := math.Sinh(hyperArg)
+	log.Debugf("sinh: %f", sinh)
 	// Первое слагаемое
-	firstTerm := x0 * sqrtArg * cosh
+	firstTerm := x0 * cosh
 	// Второе слагаемое
-	secondTerm := (x0*d + 2.0*v0*m) * sinh
+	secondTerm := (((x0 * d) + (2.0 * v0 * m)) * sinh) / sqrtArg
 	// Сборка решения
-	numerator := expFactor * (firstTerm + secondTerm)
-	denominator := sqrtArg
 
-	return expFactor * numerator / denominator
+	return expFactor * (firstTerm + secondTerm)
 }
 
 // Решение только для пружинки

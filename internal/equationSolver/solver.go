@@ -1,6 +1,7 @@
 package equationsolver
 
 import (
+	"errors"
 	"fmt"
 	"masters/internal/config"
 	aS "masters/internal/equationSolver/analiticalSols"
@@ -19,10 +20,6 @@ func Solver(conds *config.InitialConds) ([]float64, error) {
 	t0 := conds.T0
 	t := conds.T
 	tau := conds.Tau
-
-	k := conds.K
-	d := conds.D
-	m := conds.M
 
 	//if tau < 0 || t < t0 || k < 0 || d < 0 || m < 0 {
 	//	err := errors.New("incorrect json conds input")
@@ -44,46 +41,108 @@ func Solver(conds *config.InitialConds) ([]float64, error) {
 	A[0] = conds.X0
 
 	for i := 0; i < n; i++ {
-		if i > 0 {
-			analit := aS.SpringAnalyticalSolution(float64(i)*tau, conds)
-			A = append(A, analit)
-		}
+		//if i > 0 {
 
-		//k = k * (-1)
-		//d = d * (-1)
+		//log.Debugf("t: %f", tau*float64(i+1))
 
-		k1x := V[i]
-		k1v := -(k*X[i] + d*V[i]) / m
+		analit := aS.GeneralAnalyticalSolution(tau*float64(i+1), conds)
+		A = append(A, analit)
 
-		// Вычисляем значения на половинном шаге
-		xHalf := X[i] + (tau/2)*k1x
-		vHalf := V[i] + (tau/2)*k1v
-
-		// Вычисляем вторые коэффициенты
-		k2x := vHalf
-		k2v := -(k*xHalf + d*vHalf) / m
-
-		// Финальное обновление
-		x := X[i] + tau*k2x
-		v := V[i] + tau*k2v
-
-		//x := X[i] + tau*(V[i]+(tau/2.0)*V[i])
-		//v := V[i] + (k*tau/m)*(V[i]+(tau/2)*(k*X[i]-d*V[i])/m) - (d*tau/m)*(V[i]+(tau/2)*(k*V[i]-d*V[i])/m)
-
-		//x := X[i] + V[i]*tau
-		//v := V[i] - tau*((k*X[i]-d*V[i])/m)
+		x, v := RK4Method(tau, X, V, i, conds)
 
 		X = append(X, x)
 		V = append(V, v)
 	}
 
-	log.Debugf("len X: %v", len(X))
+	log.Debugf("len X Численное решение: %v", len(X))
 	log.Debugf("%v \n", X)
-	log.Debugf("len V: %v", len(V))
-	log.Debugf("%v", V)
+	//log.Debugf("len V: %v", len(V))
+	//log.Debugf("%v", V)
 
-	log.Debugf("len A: %v", len(A))
+	log.Debugf("len A Аналитическое решение: %v", len(A))
 	log.Debugf("%v", A)
 
 	return X, nil
+}
+
+func RK2Method(tau float64, X, V []float64, i int, conds *config.InitialConds) (float64, float64) {
+
+	t := tau * float64(i)
+	vec0 := make([]float64, 2)
+	vec0[0] = X[i]
+	vec0[1] = V[i]
+	k1, _ := F(t, vec0, conds)
+	vec := VecAdd(vec0, VecMult(tau/2.0, k1))
+	k2, _ := F(t+tau/2.0, vec, conds)
+
+	x := X[i] + k2[0]*tau
+	v := V[i] + k2[1]*tau
+
+	return x, v
+}
+
+func RK4Method(tau float64, X, V []float64, i int, conds *config.InitialConds) (float64, float64) {
+
+	t := tau * float64(i)
+	vec0 := make([]float64, 2)
+	vec0[0] = X[i]
+	vec0[1] = V[i]
+	k1, _ := F(t, vec0, conds)
+	vec := VecAdd(vec0, VecMult(tau/2.0, k1))
+	k2, _ := F(t+tau/2.0, vec, conds)
+
+	vec = VecAdd(vec0, VecMult(tau/2.0, k2))
+	k3, _ := F(t+tau/2.0, vec, conds)
+
+	vec = VecAdd(vec0, VecMult(tau, k3))
+	k4, _ := F(t+tau, vec, conds)
+
+	K := VecAdd(k1, VecMult(2.0, k2), VecMult(2.0, k3), k4)
+	K = VecMult(1.0/6.0, K)
+
+	x := X[i] + K[0]*tau
+	v := V[i] + K[1]*tau
+
+	return x, v
+}
+
+func F(t float64, X []float64, conds *config.InitialConds) ([]float64, error) {
+
+	if len(X) != 2 {
+		err := errors.New("wrong size vector X")
+		log.Errorf("%s", err)
+		return nil, err
+	}
+
+	k := conds.K
+	m := conds.M
+	d := conds.D
+
+	vec := make([]float64, 2)
+
+	vec[0] = X[1]
+	vec[1] = (-k*X[0] - d*X[1]) / m
+
+	return vec, nil
+}
+
+func VecAdd(a ...[]float64) []float64 {
+
+	sumVec := make([]float64, 2)
+
+	for _, val := range a {
+		sumVec[0] += val[0]
+		sumVec[1] += val[1]
+	}
+
+	return sumVec
+}
+
+func VecMult(k float64, a []float64) []float64 {
+	vec := make([]float64, 2)
+
+	vec[0] = a[0] * k
+	vec[1] = a[1] * k
+
+	return vec
 }
