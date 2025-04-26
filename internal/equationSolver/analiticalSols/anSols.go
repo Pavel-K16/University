@@ -3,6 +3,7 @@ package analiticalSols
 import (
 	"masters/internal/config"
 	"masters/internal/logger"
+	u "masters/internal/numMethods/utils"
 	"math"
 )
 
@@ -14,11 +15,7 @@ var (
 func GeneralAnalyticalSolution(t float64, conds *config.InitialConds) float64 {
 	// Вычисление подкоренного выражения
 
-	k := conds.K
-	d := conds.D
-	m := conds.M
-	x0 := conds.X0
-	v0 := conds.V0
+	k, m, d, x0, v0 := u.InitConds4aS(conds)
 
 	arg := (d * d) - (4.0 * k * m)
 
