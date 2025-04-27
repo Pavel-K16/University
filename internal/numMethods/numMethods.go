@@ -13,8 +13,8 @@ var (
 
 func RK2Method(tau float64, X, V []float64, i int, conds *config.InitialConds) (float64, float64) {
 	log.Tracef("RK2Method.numMethods.go")
-
-	t := tau * float64(i)
+	t0 := conds.T0
+	t := tau*float64(i) + t0
 	vec0 := make([]float64, 2)
 	vec0[0] = X[i]
 	vec0[1] = V[i]
@@ -31,7 +31,8 @@ func RK2Method(tau float64, X, V []float64, i int, conds *config.InitialConds) (
 func RK4Method(tau float64, X, V []float64, i int, conds *config.InitialConds) (float64, float64) {
 	log.Tracef("RK4Method.numMethods.go")
 
-	t := tau * float64(i)
+	t0 := conds.T0
+	t := tau*float64(i) + t0
 	vec0 := make([]float64, 2)
 
 	vec0[0] = X[i]

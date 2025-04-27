@@ -1,12 +1,15 @@
 package equationsolver
 
 import (
+	"fmt"
 	"masters/internal/config"
+	"masters/internal/defaults"
 	aS "masters/internal/equationSolver/analiticalSols"
 	"masters/internal/logger"
 	nM "masters/internal/numMethods"
 	u "masters/internal/numMethods/utils"
 	"math"
+	"os"
 )
 
 var (
@@ -30,7 +33,7 @@ func Solver(conds *config.InitialConds) ([]float64, error) {
 	for i := 0; i < n; i++ {
 
 		if err == nil {
-			analit, err = aS.GeneralAnalyticalSolution(tau*float64(i+1), conds)
+			analit, err = aS.GeneralAnalyticalSolution(t0+tau*float64(i+1), conds)
 			A = append(A, analit)
 		}
 
@@ -56,5 +59,34 @@ func Solver(conds *config.InitialConds) ([]float64, error) {
 		log.Errorf("%s", err)
 	}
 
+	if err = WriteNumSolutionToFile(X, conds); err != nil {
+		log.Errorf("%s", err)
+	}
+
 	return X, nil
+}
+
+func WriteNumSolutionToFile(X []float64, conds *config.InitialConds) error {
+
+	pointsFile, err := os.OpenFile(defaults.PointsFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	if err != nil {
+		return err
+	}
+
+	tau, t0 := conds.Tau, conds.T0
+
+	for i, val := range X {
+		fmt.Fprintf(pointsFile, "%.10f ", t0+float64(i)*tau)
+		fmt.Fprintf(pointsFile, "%.10f\n", val)
+	}
+
+	paramsFile, err := os.OpenFile(defaults.ParamsFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	if err != nil {
+		return err
+	}
+
+	k, m, d, t, x0, v0 := conds.K, conds.M, conds.D, conds.T, conds.X0, conds.V0
+	fmt.Fprintf(paramsFile, "%f \n%f \n%f \n%f \n%f \n%f \n%f", k, m, d, t0, t, x0, v0)
+
+	return nil
 }
