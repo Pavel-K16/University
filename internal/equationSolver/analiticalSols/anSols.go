@@ -46,7 +46,7 @@ func GeneralAnalyticalSolution(t float64, conds *config.InitialConds) (float64, 
 }
 
 // Решение только для пружинки
-func SpringAnalyticalSolution(t float64, conds *config.InitialConds) float64 {
+func SpringAnalyticalSolution(t float64, conds *config.InitialConds) (float64, error) {
 
 	k := conds.K
 	m := conds.M
@@ -59,5 +59,5 @@ func SpringAnalyticalSolution(t float64, conds *config.InitialConds) float64 {
 	firstTerm := x0 * math.Cos(omega*t)
 	secondTerm := v0 * math.Sin(omega*t)
 
-	return firstTerm + secondTerm
+	return firstTerm + secondTerm, nil
 }
