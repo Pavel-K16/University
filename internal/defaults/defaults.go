@@ -5,5 +5,5 @@ import "github.com/sirupsen/logrus"
 const (
 	ConfigFilePath = "../internal/config/config.json"
 	LogsFilePath   = "../internal/logger/logs/logs.txt"
-	LogLevel       = logrus.TraceLevel
+	LogLevel       = logrus.DebugLevel
 )

@@ -1,6 +1,7 @@
 package analiticalSols
 
 import (
+	"errors"
 	"masters/internal/config"
 	"masters/internal/logger"
 	u "masters/internal/numMethods/utils"
@@ -12,33 +13,36 @@ var (
 )
 
 // решение для демфера и пружины
-func GeneralAnalyticalSolution(t float64, conds *config.InitialConds) float64 {
+func GeneralAnalyticalSolution(t float64, conds *config.InitialConds) (float64, error) {
 	// Вычисление подкоренного выражения
 
 	k, m, d, x0, v0 := u.InitConds4aS(conds)
 
 	arg := (d * d) - (4.0 * k * m)
 
+	if arg <= 0 {
+		err := errors.New("incorrect params 4 aS: d*d - 4*k*m = ")
+		log.Warningf("%s %f", err, arg)
+
+		return 0, err
+	}
+
 	sqrtArg := math.Sqrt(arg)
-	log.Debugf("ARG: %f", sqrtArg)
+
 	// Вычисление экспоненциального множителя
 	expFactor := math.Exp((-d * t) / (2.0 * m))
-	log.Debugf("EXP: %f", expFactor)
 	// Вычисление аргументов гиперболических функций
 	hyperArg := (sqrtArg * t) / (2.0 * m)
-
 	// Вычисление гиперболических функций
 	cosh := math.Cosh(hyperArg)
-	log.Debugf("cosh: %f", cosh)
 	sinh := math.Sinh(hyperArg)
-	log.Debugf("sinh: %f", sinh)
 	// Первое слагаемое
 	firstTerm := x0 * cosh
 	// Второе слагаемое
 	secondTerm := (((x0 * d) + (2.0 * v0 * m)) * sinh) / sqrtArg
 	// Сборка решения
 
-	return expFactor * (firstTerm + secondTerm)
+	return expFactor * (firstTerm + secondTerm), nil
 }
 
 // Решение только для пружинки

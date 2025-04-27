@@ -1,18 +1,23 @@
 package main
 
 import (
-	"fmt"
 	"masters/internal/config"
 	equationsolver "masters/internal/equationSolver"
+	"masters/internal/logger"
+	"os"
+)
+
+var (
+	log = logger.LoggerInit()
 )
 
 func main() {
-	//os.Chdir("..")
-	//logger.LoggerInit()
-
 	var conds config.InitialConds
-	config.CondsInit(&conds)
-	fmt.Println("Conds:", conds)
+	if err := config.CondsInit(&conds); err != nil {
+		log.Errorf("%s", err)
+
+		os.Exit(1)
+	}
 
 	equationsolver.Solver(&conds)
 }
