@@ -33,7 +33,7 @@ func Solver(conds *config.InitialConds) ([]float64, error) {
 	for i := 0; i < n; i++ {
 
 		if err == nil {
-			analit, err = aS.SpringAnalyticalSolution(t0+tau*float64(i+1), conds)
+			analit, err = aS.GeneralAnalyticalSolution(t0+tau*float64(i+1), conds)
 			A = append(A, analit)
 		}
 
@@ -45,23 +45,25 @@ func Solver(conds *config.InitialConds) ([]float64, error) {
 
 	log.Debugf("len X: %v Num Sol: \n %v \n", len(X), X)
 
+	if err = WriteNumSolutionToFile(X, conds); err != nil {
+		log.Errorf("%s", err)
+	}
+
 	if err != nil {
 		log.Warningf("%s", err)
 
-		return X, nil
+		return X, err
 	}
-
-	log.Debugf("len A %v Analitic Sol: \n %v \n", len(A), A)
 
 	if diff, err := u.Cnorm(A, X); err == nil {
 		log.Debugf("Cnorm: %.20f", diff)
 	} else {
 		log.Errorf("%s", err)
+
+		return X, nil
 	}
 
-	if err = WriteNumSolutionToFile(X, conds); err != nil {
-		log.Errorf("%s", err)
-	}
+	log.Debugf("len A %v Analitic Sol: \n %v \n", len(A), A)
 
 	return X, nil
 }

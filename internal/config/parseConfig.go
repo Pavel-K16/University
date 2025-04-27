@@ -52,7 +52,7 @@ func ReadFile(path string) ([]byte, error) {
 func checkConfig(conditions *InitialConds) error {
 	tau, t, t0, k, d, m := condsInit(conditions)
 
-	if tau < 0 || t < t0 || k < 0 || d < 0 || m < 0 {
+	if tau < 0 || t < t0 || d < 0 || k < 0 || m < 0 {
 		err := errors.New("incorrect json conds input")
 		log.Errorf("%s", err)
 
