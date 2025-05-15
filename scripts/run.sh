@@ -10,6 +10,7 @@ go build -o myapp "$MAIN_FILE"
 if [ $? -eq 0 ]; then
     ./myapp
     rm myapp 
+    ./wolfram.sh
 else
     echo "Ошибка компиляции."
 fi
