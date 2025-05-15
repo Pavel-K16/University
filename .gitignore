@@ -1,0 +1,42 @@
+# Бинарные файлы и исполняемые файлы
+myapp
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Временные файлы
+*.test
+*.out
+*.prof
+*.trace
+
+# Директории Go
+/vendor/
+/bin/
+/pkg/
+
+# IDE и редакторы
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Файлы операционной системы
+.DS_Store
+Thumbs.db
+
+# Логи и отладочные файлы
+*.log
+*.txt
+debug
+debug.test
+
+# Файлы сборки
+/build/
+/dist/
+
+# Кэш Go
+go.work 
