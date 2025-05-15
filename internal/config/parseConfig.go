@@ -39,6 +39,25 @@ func CondsInit(conditions *InitialConds) error {
 	return nil
 }
 
+func CoupledCondsInit(conditions *InitialCondsCoupled) error {
+	var condsInfo []byte
+	var err error
+
+	if condsInfo, err = ReadFile(defaults.ConfigCoupledFilePath); err != nil {
+		log.Errorf("Can't read the file: %s", err)
+
+		return err
+	}
+
+	if err = json.Unmarshal(condsInfo, conditions); err != nil {
+		log.Errorf("Unmarshal err: %s", err)
+
+		return err
+	}
+
+	return nil
+}
+
 func ReadFile(path string) ([]byte, error) {
 	data, err := os.ReadFile(path)
 
