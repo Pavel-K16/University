@@ -7,7 +7,7 @@ const (
 	ConfigCoupledFilePath = "../internal/config/configs/configCoupled.json"
 	LogsFilePath          = "../internal/logger/logs/logs.txt"
 	LogLevel              = logrus.DebugLevel
-	PointsFilePath        = "../wolfram/paramsAndPoints/points.txt"
+	PointsFilePath        = "../wolfram/paramsAndPoints/points1.txt"
 	ParamsFilePath        = "../wolfram/paramsAndPoints/params.txt"
 	Points2FilePath       = "../wolfram/paramsAndPoints/points2.txt"
 )
