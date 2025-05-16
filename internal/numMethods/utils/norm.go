@@ -3,6 +3,12 @@ package utils
 import (
 	"errors"
 	"math"
+
+	"masters/internal/logger"
+)
+
+var (
+	log = logger.LoggerInit()
 )
 
 func Cnorm(a, b []float64) (float64, error) {

@@ -14,43 +14,37 @@ var (
 	log = logger.LoggerInit()
 )
 
-func CondsInit(conditions *InitialConds) error {
-	var condsInfo []byte
+func CondsInit(bodiesConds *BodiesConds, timeConds *TimeConds) error {
+	var bodiesInfo, timeInfo []byte
+
 	var err error
 
-	if condsInfo, err = ReadFile(defaults.ConfigFilePath); err != nil {
+	if bodiesInfo, err = ReadFile(defaults.BodiesConfigFilePath); err != nil {
 		log.Errorf("Can't read the file: %s", err)
 
 		return err
 	}
 
-	if err = json.Unmarshal(condsInfo, conditions); err != nil {
+	if timeInfo, err = ReadFile(defaults.TimeConfigPath); err != nil {
+		log.Errorf("Can't read the file: %s", err)
+
+		return err
+	}
+
+	if err = json.Unmarshal(bodiesInfo, bodiesConds); err != nil {
 		log.Errorf("Unmarshal err: %s", err)
 
 		return err
 	}
 
-	if err = checkConfig(conditions); err != nil {
+	if err = json.Unmarshal(timeInfo, timeConds); err != nil {
+		log.Errorf("Unmarshal err: %s", err)
+
+		return err
+	}
+
+	if err = checkConfig(bodiesConds, timeConds); err != nil {
 		log.Errorf("Wrong config data: %s", err)
-
-		return err
-	}
-
-	return nil
-}
-
-func CoupledCondsInit(conditions *InitialCondsCoupled) error {
-	var condsInfo []byte
-	var err error
-
-	if condsInfo, err = ReadFile(defaults.ConfigCoupledFilePath); err != nil {
-		log.Errorf("Can't read the file: %s", err)
-
-		return err
-	}
-
-	if err = json.Unmarshal(condsInfo, conditions); err != nil {
-		log.Errorf("Unmarshal err: %s", err)
 
 		return err
 	}
@@ -68,10 +62,16 @@ func ReadFile(path string) ([]byte, error) {
 	return data, nil
 }
 
-func checkConfig(conditions *InitialConds) error {
-	tau, t, t0, k, d, m := condsInit(conditions)
+func checkConfig(bodiesConds *BodiesConds, timeConds *TimeConds) error {
+	tau, t, t0 := timeConds.Tau, timeConds.T, timeConds.T0
+	body1 := bodiesConds.Body1
+	body2 := bodiesConds.Body2
+	connParams := bodiesConds.ConnParams
 
-	if tau < 0 || t < t0 || d < 0 || k < 0 || m < 0 {
+	m1, k1, d1, m2, k2, d2 := body1.M, body1.K, body1.D, body2.M, body2.K, body2.D
+	k12, d12 := connParams.K12, connParams.D12
+
+	if tau < 0 || t < t0 || d1 < 0 || k1 < 0 || m1 < 0 || d2 < 0 || k2 < 0 || m2 < 0 || d12 < 0 || k12 < 0 {
 		err := errors.New("incorrect json conds input")
 		log.Errorf("%s", err)
 
@@ -79,15 +79,4 @@ func checkConfig(conditions *InitialConds) error {
 	}
 
 	return nil
-}
-
-func condsInit(conditions *InitialConds) (float64, float64, float64, float64, float64, float64) {
-	tau := conditions.Tau
-	t := conditions.T
-	t0 := conditions.T0
-	k := conditions.K
-	d := conditions.D
-	m := conditions.M
-
-	return tau, t, t0, k, d, m
 }

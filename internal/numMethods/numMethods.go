@@ -11,10 +11,11 @@ var (
 	log = logger.LoggerInit()
 )
 
-func RK2Method(tau float64, X, V []float64, i int, conds *config.InitialConds) (float64, float64) {
+func RK2Method(X, V []float64, i int, timeConds *config.TimeConds, conds *config.Body) (float64, float64) {
 	log.Tracef("RK2Method.numMethods.go")
 
-	t0 := conds.T0
+	t0 := timeConds.T0
+	tau := timeConds.Tau
 	t := tau*float64(i) + t0
 	vec0 := make([]float64, 2)
 	vec0[0] = X[i]
@@ -29,10 +30,11 @@ func RK2Method(tau float64, X, V []float64, i int, conds *config.InitialConds) (
 	return x, v
 }
 
-func RK4Method(tau float64, X, V []float64, i int, conds *config.InitialConds) (float64, float64) {
+func RK4Method(X, V []float64, i int, timeConds *config.TimeConds, conds *config.Body) (float64, float64) {
 	log.Tracef("RK4Method.numMethods.go")
 
-	t0 := conds.T0
+	t0 := timeConds.T0
+	tau := timeConds.Tau
 	t := tau*float64(i) + t0
 	vec0 := make([]float64, 2)
 
@@ -58,7 +60,7 @@ func RK4Method(tau float64, X, V []float64, i int, conds *config.InitialConds) (
 	return x, v
 }
 
-func F(t float64, X []float64, conds *config.InitialConds) ([]float64, error) {
+func F(t float64, X []float64, body *config.Body) ([]float64, error) {
 	log.Tracef("F.numMethods.go")
 
 	if len(X) != 2 {
@@ -68,7 +70,7 @@ func F(t float64, X []float64, conds *config.InitialConds) ([]float64, error) {
 		return nil, err
 	}
 
-	k, m, d := u.InitConds4F(conds) // k m d
+	k, m, d := body.K, body.M, body.D
 
 	vec := make([]float64, 2)
 
@@ -83,16 +85,19 @@ func F(t float64, X []float64, conds *config.InitialConds) ([]float64, error) {
 // m₁(d²x₁/dt²) + d₁x₁' + k₁x₁ - F₁₂ = 0
 // m₂(d²x₂/dt²) + d₂x₂' + k₂x₂ + F₁₂ = 0
 // F₁₂ + k₁₂(x₁ - x₂) + d₁₂(x₁ - x₂) = 0
-func RK2MethodCoupled(tau float64, X1, V1, X2, V2 []float64, i int, conds *config.InitialCondsCoupled) (float64, float64, float64, float64) {
+func RK2MethodCoupled(tau float64, X1, V1, X2, V2 []float64, i int, conds *config.BodiesConds) (float64, float64, float64, float64) {
 	// params: m1, m2, k1, k2, d1, d2, k12, d12
-	m1 := conds.M1
-	m2 := conds.M2
-	k1 := conds.K1
-	k2 := conds.K2
-	d1 := conds.D1
-	d2 := conds.D2
-	k12 := conds.K12
-	d12 := conds.D12
+	body1 := conds.Body1
+	body2 := conds.Body2
+
+	m1 := body1.M
+	m2 := body2.M
+	k1 := body1.K
+	k2 := body2.K
+	d1 := body1.D
+	d2 := body2.D
+	k12 := conds.ConnParams.K12
+	d12 := conds.ConnParams.D12
 
 	x1 := X1[i]
 	v1 := V1[i]

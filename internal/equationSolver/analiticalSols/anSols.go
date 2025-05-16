@@ -4,7 +4,6 @@ import (
 	"errors"
 	"masters/internal/config"
 	"masters/internal/logger"
-	u "masters/internal/numMethods/utils"
 	"math"
 )
 
@@ -13,10 +12,9 @@ var (
 )
 
 // решение для демфера и пружины
-func GeneralAnalyticalSolution(t float64, conds *config.InitialConds) (float64, error) {
-	// Вычисление подкоренного выражения
+func GeneralAnalyticalSolution(t float64, body *config.Body) (float64, error) {
 
-	k, m, d, x0, v0 := u.InitConds4aS(conds)
+	k, m, d, x0, v0 := body.K, body.M, body.D, body.X0, body.V0
 
 	arg := (d * d) - (4.0 * k * m)
 
@@ -46,12 +44,9 @@ func GeneralAnalyticalSolution(t float64, conds *config.InitialConds) (float64, 
 }
 
 // Решение только для пружинки
-func SpringAnalyticalSolution(t float64, conds *config.InitialConds) (float64, error) {
+func SpringAnalyticalSolution(t float64, body *config.Body) (float64, error) {
 
-	k := conds.K
-	m := conds.M
-	x0 := conds.X0
-	v0 := conds.V0
+	k, m, x0, v0 := body.K, body.M, body.X0, body.V0
 
 	koef := k / m
 	omega := math.Sqrt(koef)

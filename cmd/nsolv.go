@@ -12,21 +12,18 @@ var (
 )
 
 func main() {
-	var conds config.InitialConds
-	var coupledConds config.InitialCondsCoupled
+	var bodiesConds config.BodiesConds
+	var timeConds config.TimeConds
 
-	if err := config.CondsInit(&conds); err != nil {
+	if err := config.CondsInit(&bodiesConds, &timeConds); err != nil {
 		log.Errorf("%s", err)
 
 		os.Exit(1)
 	}
 
-	if err := config.CoupledCondsInit(&coupledConds); err != nil {
-		log.Errorf("%s", err)
-
-		os.Exit(1)
+	if bodiesConds.IsCoupled {
+		equationsolver.SolverCoupled(&bodiesConds, &timeConds)
+	} else {
+		equationsolver.Solver(&bodiesConds, &timeConds)
 	}
-
-	//equationsolver.Solver(&conds)
-	equationsolver.SolverCoupled(&coupledConds, &conds)
 }
