@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"masters/internal/config"
 	equationsolver "masters/internal/equationSolver"
 	"masters/internal/logger"
@@ -20,6 +21,10 @@ func main() {
 
 		os.Exit(1)
 	}
+
+	coupledFile, _ := os.OpenFile("../wolfram/paramsAndPoints/coupled.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	fmt.Fprintf(coupledFile, "%.10f\n", bodiesConds.ConnParams.D12)
+	fmt.Fprintf(coupledFile, "%.10f\n", bodiesConds.ConnParams.K12)
 
 	if bodiesConds.IsCoupled {
 		equationsolver.SolverCoupled(&bodiesConds, &timeConds)
