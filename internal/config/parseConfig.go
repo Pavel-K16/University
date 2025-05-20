@@ -75,7 +75,7 @@ func checkConfig(bodiesConds *BodiesConds, timeConds *TimeConds) error {
 		err := errors.New("incorrect json conds input")
 		log.Errorf("%s", err)
 
-		return err
+		return nil
 	}
 
 	return nil
