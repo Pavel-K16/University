@@ -51,7 +51,7 @@ func Solver(conds *config.BodiesConds, timeConds *config.TimeConds) ([]float64, 
 		V = append(V, v)
 	}
 
-	log.Debugf("len X: %v Num Sol: \n %v \n", len(X), X)
+	//log.Debugf("len X: %v Num Sol: \n %v \n", len(X), X)
 
 	if err = WriteNumSolutionToFile(X, body, timeConds, defaults.Points1FilePath); err != nil {
 		log.Errorf("%s", err)
@@ -71,7 +71,7 @@ func Solver(conds *config.BodiesConds, timeConds *config.TimeConds) ([]float64, 
 		return X, nil
 	}
 
-	log.Debugf("len A %v Analitic Sol: \n %v \n", len(A), A)
+	//	log.Debugf("len A %v Analitic Sol: \n %v \n", len(A), A)
 
 	return X, nil
 }

@@ -30,7 +30,6 @@ Thumbs.db
 
 # Логи и отладочные файлы
 *.log
-*.txt
 debug
 debug.test
 
