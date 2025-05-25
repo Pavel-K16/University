@@ -1,0 +1,18 @@
+\begin{table}[h]
+		\caption{Погрешности численного решения для разных $h$ и $\tau$}
+		\begin{center}
+			\large{\begin{tabular}{| c | c | c | c |}
+				\hline
+				$h $ & $\tau$ & $err$ & $err_{i-1}/err_i$ \\
+				\hline
+				$0.01$ &  $0.01$  & $2.018\cdot10^{-2}$     &  \\
+				\hline
+				$0.005$ &  $0.0025$   &   $5.204\cdot10^{-3}$   &  $3.87$  \\
+				\hline
+				$0.0025$ & $0.000625$    &  $1,3112\cdot10^{-3}$   & $3,97$  \\
+                   \hline
+				$0.00125$ & $1.5625\cdot10^{-4}$    &  $3,2812\cdot10^{-4}$   & $3.99$  \\
+				\hline
+			\end{tabular} }
+		\end{center}
+	\end{table}
