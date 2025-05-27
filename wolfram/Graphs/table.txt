@@ -16,3 +16,20 @@
 			\end{tabular} }
 		\end{center}
 	\end{table}
+
+
+
+\begin{frame}
+    % --- Блок с параметрами в правом верхнем углу ---
+    \begin{tikzpicture}[remember picture, overlay]
+        \node[anchor=north east, xshift=-0.3cm, yshift=-0.3cm] at (current page.north east) {
+            \begin{tcolorbox}[colback=white, colframe=blue!50!black, boxrule=0.5pt, arc=3pt, left=2pt, right=2pt, top=2pt, bottom=2pt, width=0.38\textwidth, opacityback=0.95]
+                \scriptsize
+                \textbf{Общие параметры для системы из двух лопаток:} $x_{01}=1$, $x_{02}=2$, $k_1=k_2=2$, $m_1=m_2=1$, $v_{01}=v_{02}=1$, $k_{12}=1$.
+            \end{tcolorbox}
+        };
+    \end{tikzpicture}
+
+    
+  
+\end{frame}
