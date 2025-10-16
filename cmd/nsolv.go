@@ -76,8 +76,8 @@ func main() {
 	// Тело 2: m=1, k=10, d=1, x0=1, v0=0
 	// Связь между телами: k_12=1, d_12=1
 	b1 := &config.SimpleBody{
-		ID: 0, Mass: 1.0, Position: 1.0, Velocity: 1.0,
-		K: 2.0, D: 0.1, Couplings: []config.Coupling{{J: 1, Kij: 1.0, Dij: 0.1, Rest: 0.0}},
+		ID: 0, Mass: 10.0, Position: 13.0, Velocity: 1.0,
+		K: 20.0, D: 3.1, Couplings: []config.Coupling{{J: 1, Kij: 0.0, Dij: 0.0, Rest: 0.0}},
 	}
 	b2 := &config.SimpleBody{
 		ID: 1, Mass: 1.0, Position: 2.0, Velocity: 1.0,
