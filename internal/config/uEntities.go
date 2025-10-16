@@ -316,3 +316,48 @@ func AssembleForcesFromBodies(bodies []BodyInterface) []Force {
 
 	return forces
 }
+
+// AutoAssembleForcesFromBodies — автоматически создаёт силы на основе конфигурации тел
+func AutoAssembleForcesFromBodies(bodies []BodyInterface) []Force {
+	forces := make([]Force, 0)
+
+	// Проходим по всем телам и создаём силы на основе их свойств
+	for i, body := range bodies {
+		// Пропускаем фиксированные тела
+		if _, isFixed := body.(*FixedBody); isFixed {
+			continue
+		}
+
+		// Собственные силы тела (если есть)
+		if body.GetStiffness() != 0 {
+			forces = append(forces, &GroundSpringForce{I: i})
+		}
+		if body.GetDamping() != 0 {
+			forces = append(forces, &GroundDamperForce{I: i})
+		}
+
+		// Обрабатываем связи тела
+		for _, coupling := range body.GetCouplings() {
+			j := coupling.J
+
+			// Проверяем, что связь валидна
+			if j >= len(bodies) || j == i {
+				continue
+			}
+
+			// Создаём силы связи между телами
+			if coupling.Kij != 0 {
+				forces = append(forces, &SpringForce{
+					I: i, J: j, K: coupling.Kij, Rest: coupling.Rest,
+				})
+			}
+			if coupling.Dij != 0 {
+				forces = append(forces, &DamperForce{
+					I: i, J: j, D: coupling.Dij,
+				})
+			}
+		}
+	}
+
+	return forces
+}

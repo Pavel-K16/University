@@ -15,8 +15,8 @@ var (
 
 func main() {
 	// Конфигурация теперь задаётся программно
-	t0 := 0.0
-	T := 100.0
+	t0 := 900.0
+	T := 1000.0
 	dt := 0.01
 
 	// Записываем коэффициенты связанности в coupled.txt
@@ -73,10 +73,10 @@ func main() {
 	// Узел 1: подвижная платформа, связана с узлом 0 через пружину
 	// Узлы 2,3: метрономы на подвижной платформе, жёстко связаны с узлом 1
 
-	fixedPlatform := &config.FixedBody{ID: 0, Position: 0.0}
+	fixedPlatform := &config.FixedBody{ID: 0, Position: 0.0} // pos 0
 
 	mobilePlatform := &config.SimpleBody{
-		ID: 1, Mass: 1.0, Position: 4.0, Velocity: 0.0,
+		ID: 1, Mass: 1.0, Position: 4.0, Velocity: 0.0, //pos 4
 		K: 0.0, D: 0.0, // собственных сил нет
 		Couplings: []config.Coupling{
 			{J: 0, Kij: 1.0, Dij: 0.0, Rest: 0.0}, // связь с фиксированной платформой
@@ -84,17 +84,17 @@ func main() {
 	}
 
 	metronome1 := &config.SimpleBody{
-		ID: 2, Mass: 1.0, Position: 2.0, Velocity: 0.0,
-		K: 0.0, D: 0.0, // собственных сил нет - они задаются через PlatformSpringForce
+		ID: 2, Mass: 100.0, Position: 2.0, Velocity: 0.0, // pos 2
+		K: 1.0, D: 1.0, // собственных сил нет
 		Couplings: []config.Coupling{
-			{J: 3, Kij: 1.0, Dij: 0.0, Rest: 0.0},
-		}, // связи задаются вручную
+			{J: 3, Kij: 1.0, Dij: 0.0, Rest: 0.0}, // связь с метрономом 2
+		},
 	}
 
 	metronome2 := &config.SimpleBody{
-		ID: 3, Mass: 1.0, Position: 3.0, Velocity: 0.0,
-		K: 0.0, D: 0.0, // собственных сил нет - они задаются через PlatformSpringForce
-		Couplings: []config.Coupling{}, // связи задаются вручную
+		ID: 3, Mass: 1.0, Position: 3.0, Velocity: 0.0, // pos 3
+		K: 1.0, D: 0.0, // собственных сил нет
+		Couplings: []config.Coupling{}, // связи задаются только с одной стороны
 	}
 
 	// Записываем параметры подвижной платформы в Params1FilePath
@@ -132,23 +132,8 @@ func main() {
 
 	bodies2 := []config.BodyInterface{fixedPlatform, mobilePlatform, metronome1, metronome2}
 
-	// Создаём силы вручную для правильной физики
-	forces2 := make([]config.Force, 0)
-
-	// Силы для подвижной платформы (индекс 1)
-	// Убираем GroundSpringForce и GroundDamperForce, так как K=0, D=0
-	forces2 = append(forces2, &config.SpringForce{I: 0, J: 1, K: 1.0, Rest: 0.0}) // связь с землёй
-	forces2 = append(forces2, &config.DamperForce{I: 0, J: 1, D: 0.0})            // демпфер с землёй
-
-	// Силы для метрономов относительно платформы
-	forces2 = append(forces2, &config.PlatformSpringForce{I: 2, PlatformIdx: 1, K: 1.0, Rest: 0.0}) // метроном 1 относительно платформы
-	forces2 = append(forces2, &config.PlatformDamperForce{I: 2, PlatformIdx: 1, D: 0.0})            // демпфер метронома 1
-	forces2 = append(forces2, &config.PlatformSpringForce{I: 3, PlatformIdx: 1, K: 1.0, Rest: 0.0}) // метроном 2 относительно платформы
-	forces2 = append(forces2, &config.PlatformDamperForce{I: 3, PlatformIdx: 1, D: 0.0})            // демпфер метронома 2
-
-	// Связь между метрономами
-	forces2 = append(forces2, &config.SpringForce{I: 2, J: 3, K: 1.0, Rest: 0.0}) // связь между метрономами
-	forces2 = append(forces2, &config.DamperForce{I: 2, J: 3, D: 0.0})            // демпфер между метрономами
+	// Автоматически создаём силы на основе конфигурации тел
+	forces2 := config.AutoAssembleForcesFromBodies(bodies2)
 
 	reg2 := config.NewForceRegistry()
 	reg2.Index(forces2)
