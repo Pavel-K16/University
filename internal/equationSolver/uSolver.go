@@ -98,3 +98,6 @@ func (s *USolver) Step(t float64) {
 		s.bodies[i].SetVelocity(newVel)
 	}
 }
+
+// synchronizeRigidlyConnectedBodies — НЕ НУЖНА! Метрономы должны иметь свои независимые позиции
+// Убираем эту функцию, так как метрономы должны колебаться независимо
