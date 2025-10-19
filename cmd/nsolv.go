@@ -15,8 +15,8 @@ var (
 
 func main() {
 	// Конфигурация теперь задаётся программно
-	t0 := 900.0
-	T := 1000.0
+	t0 := 0.0
+	T := 100.0
 	dt := 0.01
 
 	// Записываем коэффициенты связанности в coupled.txt
@@ -84,7 +84,7 @@ func main() {
 	}
 
 	metronome1 := &config.SimpleBody{
-		ID: 2, Mass: 100.0, Position: 2.0, Velocity: 0.0, // pos 2
+		ID: 2, Mass: 1.0, Position: 2.0, Velocity: 0.0, // pos 2
 		K: 1.0, D: 1.0, // собственных сил нет
 		Couplings: []config.Coupling{
 			{J: 3, Kij: 1.0, Dij: 0.0, Rest: 0.0}, // связь с метрономом 2
@@ -94,7 +94,12 @@ func main() {
 	metronome2 := &config.SimpleBody{
 		ID: 3, Mass: 1.0, Position: 3.0, Velocity: 0.0, // pos 3
 		K: 1.0, D: 0.0, // собственных сил нет
-		Couplings: []config.Coupling{}, // связи задаются только с одной стороны
+		Couplings: []config.Coupling{
+			{
+				J:   2,
+				Kij: 1.0,
+			},
+		}, // связи задаются только с одной стороны
 	}
 
 	// Записываем параметры подвижной платформы в Params1FilePath
@@ -138,6 +143,16 @@ func main() {
 	reg2 := config.NewForceRegistry()
 	reg2.Index(forces2)
 
+	for _, body := range bodies2 {
+		fmt.Printf("Body ID: %d\n", body.GetID())
+		fmt.Printf("Body mas: %f\n", body.GetMass())
+		fmt.Printf("Body pos: %f\n", body.GetPosition())
+		fmt.Printf("BodySpring %f\n", body.GetStiffness())
+		fmt.Printf("BodyDamping %f\n", body.GetDamping())
+		fmt.Printf("BodyCouplings %+v\n", body.GetCouplings())
+		fmt.Println("------------------------------------------")
+	}
+
 	// Отладочный вывод отключен
 
 	uSolver2 := equationsolver.NewSolver(bodies2, reg2, dt)
@@ -171,5 +186,4 @@ func main() {
 		// Записываем время и позицию фиксированной платформы (индекс 0) - всегда 0
 		fmt.Fprintf(points4File, "%.10f %.10f\n", t, bodies2[0].GetPosition())
 	}
-
 }
