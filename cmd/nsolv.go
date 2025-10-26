@@ -16,7 +16,7 @@ func main() {
 	// Конфигурация теперь задаётся программно
 	t0 := 0.0
 	T := 100.0
-	dt := 0.001
+	dt := 0.01
 
 	// ===== НОВАЯ ГРАФОВАЯ СИСТЕМА =====
 	solveWithGraph(t0, T, dt)
@@ -52,15 +52,15 @@ func solveWithGraph(t0, T, dt float64) {
 	// Начальное состояние (t=0): масса=1.0, позиция=1.0, скорость=0.0
 	// Собственных сил НЕТ (K=0, D=0) - вся жёсткость через рёбра!
 
-	metronome1 := config.NewMovableNode(1, 1.0, 4.0, 0.0, 0.0, 0.0)
+	metronome1 := config.NewMovableNode(1, 1.0, 2.0, 0.0, 0.0, 0.0)
 	graph.AddNode(metronome1)
 
 	// Узел 3: Метроном 2
 	// Начальное состояние (t=0): масса=1.0, позиция=-1.0, скорость=0.0
 	// Собственных сил НЕТ (K=0, D=0) - вся жёсткость через рёбра!
 
-	metronome2 := config.NewMovableNode(2, 1.0, 2.0, 0.0, 0.0, 0.0)
-	graph.AddNode(metronome2)
+	//metronome2 := config.NewMovableNode(2, 1.0, 2.0, 0.0, 0.0, 0.0)
+	//graph.AddNode(metronome2)
 
 	// --- СВЯЗИ (РЁБРА ГРАФА) ---
 	// Все коэффициенты задаются ЗДЕСЬ, в рёбрах!
@@ -71,8 +71,8 @@ func solveWithGraph(t0, T, dt float64) {
 
 	// Ребро 1-2: связь между платформой (1) и метрономом 1 (2)
 	// Пружина: k=1.0, Демпфер: d=0.0
-	graph.AddEdge(0, 2, 1.0, 1.0, 0.0)
-	graph.AddEdge(1, 2, 1.0, 0.0, 0.0)
+	//graph.AddEdge(0, 2, 1.0, 1.0, 0.0)
+	//graph.AddEdge(1, 2, 1.0, 0.0, 0.0)
 
 	// Ребро 1-3: связь между платформой (1) и метрономом 2 (3)
 	// Пружина: k=1.0, Демпфер: d=0.0
@@ -84,18 +84,43 @@ func solveWithGraph(t0, T, dt float64) {
 
 	// Выводим информацию о графе
 	fmt.Printf("\n=== Структура графа ===\n")
-	fmt.Printf("Узлов в графе: %d\n", len(graph.Nodes))
+
+	// Подсчитываем общее число уникальных связей
+	type EdgeKey struct {
+		from, to int
+	}
+	uniqueEdges := make(map[EdgeKey]bool)
+	totalLinks := 0
 	for _, node := range graph.Nodes {
-		fmt.Printf("Узел %d: масса=%.2f, pos=%.2f, vel=%.2f",
+		for _, edge := range node.Edges {
+			key := EdgeKey{node.ID, edge.TargetID}
+			if !uniqueEdges[key] {
+				uniqueEdges[key] = true
+				totalLinks++
+			}
+		}
+	}
+
+	fmt.Printf("Узлов в графе: %d\n", len(graph.Nodes))
+	fmt.Printf("Всего связей: %d\n", totalLinks)
+	fmt.Printf("Длина пружины в ненапряжённом состоянии: rest\n")
+	fmt.Println()
+
+	// Выводим информацию о каждом узле
+	linkCounter := 1
+	for _, node := range graph.Nodes {
+		fmt.Printf("Узел №%d: масса=%.2f, pos=%.2f, vel=%.2f",
 			node.ID, node.Mass, node.Position, node.Velocity)
 		if node.IsFixed {
 			fmt.Print(" [ЗАКРЕПЛЁН]")
 		}
 		fmt.Printf(" (связей: %d)\n", len(node.Edges))
+
 		// Выводим связи узла
 		for _, edge := range node.Edges {
-			fmt.Printf("  └─ связь с узлом %d: k=%.2f, d=%.2f\n",
-				edge.TargetID, edge.K, edge.D)
+			fmt.Printf("  └─ связь №%d с узлом №%d: k=%.2f, d=%.2f, rest=%.2f\n",
+				linkCounter, edge.TargetID, edge.K, edge.D, edge.Rest)
+			linkCounter++
 		}
 	}
 
@@ -130,7 +155,7 @@ func solveWithGraph(t0, T, dt float64) {
 		// Записываем результаты для каждого узла в соответствующие файлы
 		fmt.Fprintf(graphPoints1File, "%.10f %.10f\n", t, graph.GetNode(0).Position) // неподвижная платформа
 		fmt.Fprintf(graphPoints2File, "%.10f %.10f\n", t, graph.GetNode(1).Position) // подвижная платформа
-		fmt.Fprintf(graphPoints3File, "%.10f %.10f\n", t, graph.GetNode(2).Position) //graph.GetNode(2).Position) // метроном 1
+		fmt.Fprintf(graphPoints3File, "%.10f %.10f\n", t, 0.0)                       //graph.GetNode(2).Position) //graph.GetNode(2).Position) // метроном 1
 		fmt.Fprintf(graphPoints4File, "%.10f %.10f\n", t, 0.0)                       //graph.GetNode(3).Position) // метроном 2
 
 		iterations++

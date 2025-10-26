@@ -82,11 +82,11 @@ func (g *Graph) NetForce(nodeID int) float64 {
 		return 0
 	}
 
-	var force float64
+	var force float64 = 0.0
 
-	// 1. Собственные силы узла (если есть)
-	force += -node.K * node.Position // пружина относительно земли
-	force += -node.D * node.Velocity // демпфер относительно земли
+	// 1. Собственные силы узла (не используются в текущей задаче)
+	// force += -node.K * node.Position // пружина относительно земли
+	// force += -node.D * node.Velocity // демпфер относительно земли
 
 	// 2. Силы от всех связей этого узла
 	// Проходим по всем рёбрам узла, забираем параметры связанных узлов
@@ -101,9 +101,13 @@ func (g *Graph) NetForce(nodeID int) float64 {
 		dv := node.Velocity - targetNode.Velocity             // относительная скорость
 
 		// Сила от пружины: F = -k * dx
+		// Противодействует растяжению: если dx > 0 (пружина растянута),
+		// то сила отрицательна (притягивает узел к другому узлу)
 		springForce := -edge.K * dx
 
 		// Сила от демпфера: F = -d * dv
+		// Противодействует движению: если dv > 0 (узел движется быстрее),
+		// то сила отрицательна (тормозит узел)
 		damperForce := -edge.D * dv
 
 		force += springForce + damperForce
