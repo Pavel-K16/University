@@ -10,14 +10,14 @@ import (
 )
 
 var (
-	log = logger.LoggerInit()
+	_ = logger.LoggerInit() // Logger for debugging
 )
 
 func main() {
 	// Конфигурация теперь задаётся программно
 	t0 := 0.0
-	T := 100.0
-	dt := 0.01
+	T := 500.0
+	dt := 0.001
 
 	// Записываем коэффициенты связанности в coupled.txt
 
@@ -143,15 +143,15 @@ func main() {
 	reg2 := config.NewForceRegistry()
 	reg2.Index(forces2)
 
-	for _, body := range bodies2 {
-		fmt.Printf("Body ID: %d\n", body.GetID())
-		fmt.Printf("Body mas: %f\n", body.GetMass())
-		fmt.Printf("Body pos: %f\n", body.GetPosition())
-		fmt.Printf("BodySpring %f\n", body.GetStiffness())
-		fmt.Printf("BodyDamping %f\n", body.GetDamping())
-		fmt.Printf("BodyCouplings %+v\n", body.GetCouplings())
-		fmt.Println("------------------------------------------")
-	}
+	// for _, body := range bodies2 {
+	// 	fmt.Printf("Body ID: %d\n", body.GetID())
+	// 	fmt.Printf("Body mas: %f\n", body.GetMass())
+	// 	fmt.Printf("Body pos: %f\n", body.GetPosition())
+	// 	fmt.Printf("BodySpring %f\n", body.GetStiffness())
+	// 	fmt.Printf("BodyDamping %f\n", body.GetDamping())
+	// 	fmt.Printf("BodyCouplings %+v\n", body.GetCouplings())
+	// 	fmt.Println("------------------------------------------")
+	// }
 
 	// Отладочный вывод отключен
 
@@ -186,4 +186,111 @@ func main() {
 		// Записываем время и позицию фиксированной платформы (индекс 0) - всегда 0
 		fmt.Fprintf(points4File, "%.10f %.10f\n", t, bodies2[0].GetPosition())
 	}
+
+	// ===== НОВАЯ ГРАФОВАЯ СИСТЕМА =====
+	solveWithGraph(t0, T, dt)
+}
+
+// solveWithGraph решает задачу о метрономах используя графовую систему
+func solveWithGraph(t0, T, dt float64) {
+	fmt.Println("\n=== Решение задачи о метрономах через графовую систему ===")
+
+	// Создаём граф
+	graph := config.NewGraph()
+
+	// Узел 0: Жёстко закреплённая платформа (неподвижная)
+	fixedPlatform := config.NewFixedNode(0, 0.0)
+	graph.AddNode(fixedPlatform)
+
+	// Узел 1: Подвижная платформа
+	// Масса: 1.0, начальное положение: 4.0, начальная скорость: 0.0
+	// Собственных пружины и демпфера НЕТ (K=0, D=0) - все силы через рёбра!
+	mobilePlatform := config.NewMovableNode(1, 1.0, 4.0, 0.0, 0.0, 0.0)
+	graph.AddNode(mobilePlatform)
+
+	// Узел 2: Метроном 1
+	// Масса: 1.0, начальное положение: 1.0, начальная скорость: 0.0
+	// Собственных сил НЕТ (K=0, D=0) - вся жёсткость через рёбра!
+	metronome1 := config.NewMovableNode(2, 1.0, 2.0, 0.0, 0.0, 0.0)
+	graph.AddNode(metronome1)
+
+	// Узел 3: Метроном 2
+	// Масса: 1.0, начальное положение: -1.0, начальная скорость: 0.0
+	// Собственных сил НЕТ (K=0, D=0) - вся жёсткость через рёбра!
+	metronome2 := config.NewMovableNode(3, 1.0, 3.0, 0.0, 0.0, 0.0)
+	graph.AddNode(metronome2)
+
+	// --- СВЯЗИ (РЁБРА ГРАФА) ---
+	// Все коэффициенты задаются ЗДЕСЬ, в рёбрах!
+
+	// Ребро 0-1: связь между подвижной платформой (1) и неподвижной платформой (0)
+	// Пружина: k=0.1, Демпфер: d=0.2
+	graph.AddEdge(0, 1, 4.0, 0.0, 0.0)
+
+	// Ребро 1-2: связь между платформой (1) и метрономом 1 (2)
+	// Пружина метронома: k=1.0 (метроном прикреплён к платформе), Демпфер: d=0.05
+	graph.AddEdge(1, 2, 4.0, 0.0, 0.0)
+
+	// Ребро 1-3: связь между платформой (1) и метрономом 2 (3)
+	// Пружина метронома: k=1.0 (метроном прикреплён к платформе), Демпфер: d=0.05
+	graph.AddEdge(1, 3, 4.0, 0.0, 0.0)
+
+	// Ребро 2-3: связь между метрономами 1 и 2 для синхронизации
+	// Демпфер между метрономами: d=0.01
+	graph.AddEdge(2, 3, 4.0, 0.0, 0.0)
+
+	// Выводим информацию о графе
+	fmt.Printf("\n=== Структура графа ===\n")
+	fmt.Printf("Узлов в графе: %d\n", len(graph.Nodes))
+	for _, node := range graph.Nodes {
+		fmt.Printf("Узел %d: масса=%.2f, pos=%.2f, vel=%.2f",
+			node.ID, node.Mass, node.Position, node.Velocity)
+		if node.IsFixed {
+			fmt.Print(" [ЗАКРЕПЛЁН]")
+		}
+		fmt.Printf(" (связей: %d)\n", len(node.Edges))
+		// Выводим связи узла
+		for _, edge := range node.Edges {
+			fmt.Printf("  └─ связь с узлом %d: k=%.2f, d=%.2f\n",
+				edge.TargetID, edge.K, edge.D)
+		}
+	}
+
+	// Создаём решатель
+	solver := equationsolver.NewGraphSolver(graph, dt)
+
+	// Открываем файлы для записи результатов
+	graphPoints1File, _ := os.OpenFile("../wolfram/paramsAndPoints/graph_points1.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	defer graphPoints1File.Close()
+	graphPoints2File, _ := os.OpenFile("../wolfram/paramsAndPoints/graph_points2.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	defer graphPoints2File.Close()
+	graphPoints3File, _ := os.OpenFile("../wolfram/paramsAndPoints/graph_points3.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	defer graphPoints3File.Close()
+	graphPoints4File, _ := os.OpenFile("../wolfram/paramsAndPoints/graph_points4.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	defer graphPoints4File.Close()
+
+	// Выполняем расчёт
+	iterations := 0
+	for t := t0; t <= T; t += dt {
+		solver.Step(t)
+
+		// Записываем результаты для каждого узла в соответствующие файлы
+		fmt.Fprintf(graphPoints1File, "%.10f %.10f\n", t, graph.GetNode(0).Position) // неподвижная платформа
+		fmt.Fprintf(graphPoints2File, "%.10f %.10f\n", t, graph.GetNode(1).Position) // подвижная платформа
+		fmt.Fprintf(graphPoints3File, "%.10f %.10f\n", t, graph.GetNode(2).Position) // метроном 1
+		fmt.Fprintf(graphPoints4File, "%.10f %.10f\n", t, graph.GetNode(3).Position) // метроном 2
+
+		iterations++
+		// if iterations%1000 == 0 {
+		// 	fmt.Printf("Время: %.2f, Платформа: %.6f, Метроном 1: %.6f, Метроном 2: %.6f\n",
+		// 		t, graph.GetNode(1).Position, graph.GetNode(2).Position, graph.GetNode(3).Position)
+		// }
+	}
+
+	fmt.Println("\nРасчёт завершён через графовую систему.")
+	fmt.Println("Результаты записаны в файлы:")
+	fmt.Println("  - graph_points1.txt (неподвижная платформа)")
+	fmt.Println("  - graph_points2.txt (подвижная платформа)")
+	fmt.Println("  - graph_points3.txt (метроном 1)")
+	fmt.Println("  - graph_points4.txt (метроном 2)")
 }
