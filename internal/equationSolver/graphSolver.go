@@ -18,128 +18,110 @@ func NewGraphSolver(graph *config.Graph, dt float64) *GraphSolver {
 	}
 }
 
+// computeAccelerations вычисляет ускорения всех узлов при заданных положениях и скоростях
+func computeAccelerations(graph *config.Graph, positions, velocities map[int]float64) map[int]float64 {
+	// Временно устанавливаем состояния
+	savedPositions := make(map[int]float64)
+	savedVelocities := make(map[int]float64)
+
+	for id := range graph.Nodes {
+		if !graph.Nodes[id].IsFixed {
+			savedPositions[id] = graph.Nodes[id].Position
+			savedVelocities[id] = graph.Nodes[id].Velocity
+			graph.Nodes[id].Position = positions[id]
+			graph.Nodes[id].Velocity = velocities[id]
+		}
+	}
+
+	// Вычисляем ускорения
+	accelerations := make(map[int]float64)
+	for id := range graph.Nodes {
+		node := graph.Nodes[id]
+		if node.IsFixed || node.Mass == 0 {
+			accelerations[id] = 0
+		} else {
+			accelerations[id] = graph.NetForce(id) / node.Mass
+		}
+	}
+
+	// Восстанавливаем состояния
+	for id := range graph.Nodes {
+		if !graph.Nodes[id].IsFixed {
+			graph.Nodes[id].Position = savedPositions[id]
+			graph.Nodes[id].Velocity = savedVelocities[id]
+		}
+	}
+
+	return accelerations
+}
+
 // Step выполняет один шаг интегрирования (метод Рунге-Кутты 4-го порядка)
 func (s *GraphSolver) Step(t float64) {
-	// Сохраняем начальные состояния всех узлов
-	type NodeState struct {
-		ID       int
-		Position float64
-		Velocity float64
-		Mass     float64
+	// Текущие состояния из графа (исходные векторы)
+	currPos := make(map[int]float64)
+	currVel := make(map[int]float64)
+	for id := range s.graph.Nodes {
+		currPos[id] = s.graph.Nodes[id].Position
+		currVel[id] = s.graph.Nodes[id].Velocity
 	}
 
-	states := make([]NodeState, 0, len(s.graph.Nodes))
-	for _, node := range s.graph.Nodes {
-		states = append(states, NodeState{
-			ID: node.ID, Position: node.Position, Velocity: node.Velocity, Mass: node.Mass,
-		})
-	}
+	// k1: производные в начальной точке
+	acc1 := computeAccelerations(s.graph, currPos, currVel)
 
-	// Сохраняем позиции и скорости для расчётов
-	pos := make(map[int]float64)
-	vel := make(map[int]float64)
-	for _, state := range states {
-		pos[state.ID] = state.Position
-		vel[state.ID] = state.Velocity
-	}
-
-	// Функция для временного установления состояния узлов и вычисления ускорения
-	computeAcceleration := func(nodeStates []NodeState) map[int]float64 {
-		// Устанавливаем временные состояния
-		for _, state := range nodeStates {
-			node := s.graph.Nodes[state.ID]
-			if node != nil && !node.IsFixed {
-				node.Position = state.Position
-				node.Velocity = state.Velocity
-			}
-		}
-
-		// Вычисляем ускорения
-		acc := make(map[int]float64)
-		for _, state := range nodeStates {
-			if s.graph.Nodes[state.ID].IsFixed || state.Mass == 0 {
-				acc[state.ID] = 0
-				continue
-			}
-			acc[state.ID] = s.graph.NetForce(state.ID) / state.Mass
-		}
-		return acc
-	}
-
-	// k1 - производные в начальной точке
-	k1vel := make(map[int]float64)
-	k1acc := computeAcceleration(states)
-	for _, state := range states {
-		if !s.graph.Nodes[state.ID].IsFixed && state.Mass > 0 {
-			k1vel[state.ID] = state.Velocity
+	// k2: промежуточное состояние на середине шага
+	pos2 := make(map[int]float64)
+	vel2 := make(map[int]float64)
+	for id := range s.graph.Nodes {
+		if !s.graph.Nodes[id].IsFixed && s.graph.Nodes[id].Mass > 0 {
+			pos2[id] = currPos[id] + s.dt*currVel[id]/2
+			vel2[id] = currVel[id] + s.dt*acc1[id]/2
+		} else {
+			pos2[id] = currPos[id]
+			vel2[id] = currVel[id]
 		}
 	}
+	acc2 := computeAccelerations(s.graph, pos2, vel2)
 
-	// k2 - производные на середине шага, используя k1
-	midStates2 := make([]NodeState, 0, len(states))
-	for _, state := range states {
-		if !s.graph.Nodes[state.ID].IsFixed && state.Mass > 0 {
-			midStates2 = append(midStates2, NodeState{
-				ID:       state.ID,
-				Position: pos[state.ID] + s.dt*k1vel[state.ID]/2,
-				Velocity: vel[state.ID] + s.dt*k1acc[state.ID]/2,
-				Mass:     state.Mass,
-			})
+	// k3: ещё одно промежуточное состояние
+	pos3 := make(map[int]float64)
+	vel3 := make(map[int]float64)
+	for id := range s.graph.Nodes {
+		if !s.graph.Nodes[id].IsFixed && s.graph.Nodes[id].Mass > 0 {
+			pos3[id] = currPos[id] + s.dt*vel2[id]/2
+			vel3[id] = currVel[id] + s.dt*acc2[id]/2
+		} else {
+			pos3[id] = currPos[id]
+			vel3[id] = currVel[id]
 		}
 	}
-	k2vel := make(map[int]float64)
-	k2acc := computeAcceleration(midStates2)
-	for _, state := range midStates2 {
-		k2vel[state.ID] = state.Velocity // скорость в момент t + dt/2
-	}
+	acc3 := computeAccelerations(s.graph, pos3, vel3)
 
-	// k3 - производные на середине шага, используя k2
-	midStates3 := make([]NodeState, 0, len(states))
-	for _, state := range states {
-		if !s.graph.Nodes[state.ID].IsFixed && state.Mass > 0 {
-			midStates3 = append(midStates3, NodeState{
-				ID:       state.ID,
-				Position: pos[state.ID] + s.dt*k2vel[state.ID]/2,
-				Velocity: vel[state.ID] + s.dt*k2acc[state.ID]/2,
-				Mass:     state.Mass,
-			})
+	// k4: состояние в конце шага
+	pos4 := make(map[int]float64)
+	vel4 := make(map[int]float64)
+	for id := range s.graph.Nodes {
+		if !s.graph.Nodes[id].IsFixed && s.graph.Nodes[id].Mass > 0 {
+			pos4[id] = currPos[id] + s.dt*vel3[id]
+			vel4[id] = currVel[id] + s.dt*acc3[id]
+		} else {
+			pos4[id] = currPos[id]
+			vel4[id] = currVel[id]
 		}
 	}
-	k3vel := make(map[int]float64)
-	k3acc := computeAcceleration(midStates3)
-	for _, state := range midStates3 {
-		k3vel[state.ID] = state.Velocity
-	}
-
-	// k4 - производные в конце шага, используя k3
-	endStates := make([]NodeState, 0, len(states))
-	for _, state := range states {
-		if !s.graph.Nodes[state.ID].IsFixed && state.Mass > 0 {
-			endStates = append(endStates, NodeState{
-				ID:       state.ID,
-				Position: pos[state.ID] + s.dt*k3vel[state.ID],
-				Velocity: vel[state.ID] + s.dt*k3acc[state.ID],
-				Mass:     state.Mass,
-			})
-		}
-	}
-	k4vel := make(map[int]float64)
-	k4acc := computeAcceleration(endStates)
-	for _, state := range endStates {
-		k4vel[state.ID] = state.Velocity
-	}
+	acc4 := computeAccelerations(s.graph, pos4, vel4)
 
 	// Обновляем все узлы по формуле РК4
-	for _, state := range states {
-		node := s.graph.Nodes[state.ID]
-		if node.IsFixed || state.Mass == 0 {
+	for id := range s.graph.Nodes {
+		node := s.graph.Nodes[id]
+		if node.IsFixed || node.Mass == 0 {
 			continue
 		}
 
-		newPos := pos[state.ID] + s.dt/6*(k1vel[state.ID]+2*k2vel[state.ID]+2*k3vel[state.ID]+k4vel[state.ID])
-		newVel := vel[state.ID] + s.dt/6*(k1acc[state.ID]+2*k2acc[state.ID]+2*k3acc[state.ID]+k4acc[state.ID])
+		// Формула РК4: новое = старое + dt/6 * (k1 + 2k2 + 2k3 + k4)
+		newPos := currPos[id] + s.dt/6*(currVel[id]+2*vel2[id]+2*vel3[id]+vel4[id])
+		newVel := currVel[id] + s.dt/6*(acc1[id]+2*acc2[id]+2*acc3[id]+acc4[id])
 
-		s.graph.UpdatePosition(state.ID, newPos)
-		s.graph.UpdateVelocity(state.ID, newVel)
+		s.graph.UpdatePosition(id, newPos)
+		s.graph.UpdateVelocity(id, newVel)
 	}
 }
