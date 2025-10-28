@@ -14,8 +14,8 @@ var (
 
 func main() {
 	// Конфигурация теперь задаётся программно
-	t0 := 0.0
-	T := 20.0
+	t0 := 100.0
+	T := 120.0
 	dt := 0.001
 
 	// ===== НОВАЯ ГРАФОВАЯ СИСТЕМА =====
@@ -31,16 +31,20 @@ func solveWithGraph(t0, T, dt float64) {
 
 	fixedPlatform := config.NewFixedNode(0, 0.0)
 	graph.AddNode(fixedPlatform)
-
-	metronome1 := config.NewMovableNode(1, 1.0, 1.0, 1.0, 0.0, 0.0)
+	//  i   m   x    v
+	metronome1 := config.NewMovableNode(1, 0.075, 2.0, 0.0, 0.0, 0.0)
 	graph.AddNode(metronome1)
-
-	metronome2 := config.NewMovableNode(2, 1.0, 2.0, 1.0, 0.0, 0.0)
+	//  i    m     x
+	metronome2 := config.NewMovableNode(2, 1.0, 4.0, 0.0, 0.0, 0.0)
 	graph.AddNode(metronome2)
 
-	graph.AddEdge(1, 0, 2.0, -0.1, 0.0)
-	graph.AddEdge(2, 0, 2.0, 0.1, 0.0)
-	graph.AddEdge(1, 2, 1.0, 0.0, 0.0)
+	metronome3 := config.NewMovableNode(3, 0.075, 3.0, 0.0, 0.0, 0.0)
+	graph.AddNode(metronome3)
+	// n n_   k     d    L
+	graph.AddEdge(1, 2, 2.24, 0.0, 0.0)
+	graph.AddEdge(3, 2, 2.24, 0.0, 0.0)
+	graph.AddEdge(2, 0, 0.00001, 0.0, 0.0)
+	//graph.AddEdge(1, 2, 1.0, 0.0, 0.0)
 	PrintGraph(graph)
 
 	// Создаём решатель
@@ -74,8 +78,8 @@ func solveWithGraph(t0, T, dt float64) {
 		// Записываем результаты для каждого узла в соответствующие файлы
 		fmt.Fprintf(graphPoints1File, "%.10f %.10f\n", t, graph.GetNode(0).Position) // неподвижная платформа
 		fmt.Fprintf(graphPoints2File, "%.10f %.10f\n", t, graph.GetNode(1).Position) // подвижная платформа
-		fmt.Fprintf(graphPoints3File, "%.10f %.10f\n", t, graph.GetNode(2).Position) //graph.GetNode(2).Position) //graph.GetNode(2).Position) // метроном 1
-		fmt.Fprintf(graphPoints4File, "%.10f %.10f\n", t, 0.0)                       //graph.GetNode(3).Position) // метроном 2
+		fmt.Fprintf(graphPoints3File, "%.10f %.10f\n", t, graph.GetNode(2).Position) //graph.GetNode(2).Position) //graph.GetNode(2).Position) //graph.GetNode(2).Position) // метроном 1
+		fmt.Fprintf(graphPoints4File, "%.10f %.10f\n", t, graph.GetNode(3).Position) //graph.GetNode(3).Position) // метроном 2
 
 		iterations++
 	}
