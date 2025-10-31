@@ -108,8 +108,9 @@ func (g *Graph) NetForce(nodeID int) float64 {
 		// Сила от демпфера: F = -d * dv
 		// Противодействует движению: если dv > 0 (узел движется быстрее),
 		// то сила отрицательна (тормозит узел)
-		damperForce := -edge.D * dv
+		//damperForce := -edge.D * dv
 
+		damperForce := -edge.D * (dx*dx - 1) * dv
 		force += springForce + damperForce
 	}
 
