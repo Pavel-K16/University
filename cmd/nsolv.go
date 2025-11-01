@@ -14,8 +14,8 @@ var (
 
 func main() {
 	// Конфигурация теперь задаётся программно
-	t0 := 0.0
-	T := 60.0
+	t0 := 80.0
+	T := 120.0
 	dt := 0.001
 
 	// ===== НОВАЯ ГРАФОВАЯ СИСТЕМА =====
@@ -41,9 +41,9 @@ func solveWithGraph(t0, T, dt float64) {
 	metronome3 := config.NewMovableNode(3, 0.075, 1.5, 0.0, 0.0, 0.0)
 	graph.AddNode(metronome3)
 	// n n_   k     d    L
-	graph.AddEdge(1, 2, 2.24, 0.04, 0.0)
-	graph.AddEdge(3, 2, 2.128, 0.04, 0.0)
-	graph.AddEdge(2, 0, 0.00001, 0.0, 0.0)
+	graph.AddEdge(1, 2, 2.24, 0.3, 0.0)
+	graph.AddEdge(3, 2, 2.2, 0.3, 0.0)
+	graph.AddEdge(2, 0, 0.00001, 0.4, 0.0)
 	//graph.AddEdge(1, 2, 1.0, 0.0, 0.0)
 	PrintGraph(graph)
 
