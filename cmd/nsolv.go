@@ -5,6 +5,7 @@ import (
 	"masters/internal/config"
 	equationsolver "masters/internal/equationSolver"
 	"masters/internal/logger"
+	"math"
 	"os"
 )
 
@@ -12,10 +13,22 @@ var (
 	_ = logger.LoggerInit() // Logger for debugging
 )
 
+// Point представляет точку на графике (время, позиция)
+type Point struct {
+	Time     float64
+	Position float64
+}
+
+// ExtremaPoint представляет точку экстремума (время, амплитуда)
+type ExtremaPoint struct {
+	Time      float64 // момент времени экстремума
+	Amplitude float64 // абсолютное значение амплитуды
+}
+
 func main() {
 	// Конфигурация теперь задаётся программно
 	t0 := 80.0
-	T := 120.0
+	T := 220.0
 	dt := 0.001
 
 	// ===== НОВАЯ ГРАФОВАЯ СИСТЕМА =====
@@ -69,6 +82,13 @@ func solveWithGraph(t0, T, dt float64) {
 		fmt.Printf("Система эволюционировала до t=%.2f\n", t0)
 	}
 
+	// Инициализируем структуры для хранения всех точек (для узлов 0, 1, 2, 3)
+	nodeIDs := []int{0, 1, 2, 3}
+	allPoints := make(map[int][]Point)
+	for _, id := range nodeIDs {
+		allPoints[id] = make([]Point, 0)
+	}
+
 	// Выполняем расчёт от t0 до T (с записью результатов)
 	fmt.Printf("Запускаем расчёт от t=%.2f до t=%.2f\n", t0, T)
 	iterations := 0
@@ -81,9 +101,116 @@ func solveWithGraph(t0, T, dt float64) {
 		fmt.Fprintf(graphPoints3File, "%.10f %.10f\n", t, graph.GetNode(2).Position) //graph.GetNode(2).Position) //graph.GetNode(2).Position) //graph.GetNode(2).Position) // метроном 1
 		fmt.Fprintf(graphPoints4File, "%.10f %.10f\n", t, graph.GetNode(3).Position) //graph.GetNode(3).Position) // метроном 2
 
+		// Сохраняем все точки для последующего анализа экстремумов
+		for _, id := range nodeIDs {
+			node := graph.GetNode(id)
+			if node != nil {
+				allPoints[id] = append(allPoints[id], Point{
+					Time:     t,
+					Position: node.Position,
+				})
+			}
+		}
+
 		iterations++
 	}
 
+	fmt.Printf("Расчёт завершён. Всего итераций: %d\n", iterations)
+	fmt.Printf("Анализируем экстремумы для каждого узла...\n")
+
+	// Находим все экстремумы для каждого узла
+	extrema := findExtrema(allPoints, nodeIDs)
+
+	// Записываем результаты экстремумов в файлы
+	writeExtremaToFiles(extrema, nodeIDs)
+}
+
+// findExtrema находит все локальные максимумы (амплитудные отклонения) для каждого узла
+// используя численную производную: максимум - когда производная слева положительная, справа отрицательная
+func findExtrema(allPoints map[int][]Point, nodeIDs []int) map[int][]ExtremaPoint {
+	extrema := make(map[int][]ExtremaPoint)
+
+	for _, id := range nodeIDs {
+		points := allPoints[id]
+		if len(points) < 3 {
+			// Нужно минимум 3 точки для определения экстремума
+			extrema[id] = make([]ExtremaPoint, 0)
+			continue
+		}
+
+		extremaList := make([]ExtremaPoint, 0)
+
+		// Проходим по всем точкам, начиная со второй и заканчивая предпоследней
+		for i := 1; i < len(points)-1; i++ {
+			prev := points[i-1]
+			curr := points[i]
+			next := points[i+1]
+
+			// Вычисляем численные производные слева и справа от текущей точки
+			// Производная слева: (curr - prev) / (curr.Time - prev.Time)
+			// Производная справа: (next - curr) / (next.Time - curr.Time)
+			dtLeft := curr.Time - prev.Time
+			dtRight := next.Time - curr.Time
+
+			// Проверяем, что шаги по времени не равны нулю (на всякий случай)
+			if dtLeft <= 0 || dtRight <= 0 {
+				continue
+			}
+
+			derivativeLeft := (curr.Position - prev.Position) / dtLeft
+			derivativeRight := (next.Position - curr.Position) / dtRight
+
+			// Локальный максимум: производная слева положительная, справа отрицательная
+			// Это означает, что функция растёт до этой точки и убывает после неё
+			isMax := derivativeLeft > 0 && derivativeRight < 0
+
+			// Если это локальный максимум, добавляем его
+			if isMax {
+				extremaList = append(extremaList, ExtremaPoint{
+					Time:      curr.Time,
+					Amplitude: math.Abs(curr.Position), // абсолютное значение амплитуды
+				})
+			}
+		}
+
+		extrema[id] = extremaList
+		fmt.Printf("Узел %d: найдено %d локальных максимумов\n", id, len(extremaList))
+	}
+
+	return extrema
+}
+
+// writeExtremaToFiles записывает все найденные экстремумы (время, амплитуда) в соответствующие файлы
+func writeExtremaToFiles(extrema map[int][]ExtremaPoint, nodeIDs []int) {
+	// Имена файлов для амплитуд (соответствуют узлам)
+	amplitudeFiles := map[int]string{
+		0: "../wolfram/paramsAndPoints/amplitude1.txt", // неподвижная платформа
+		1: "../wolfram/paramsAndPoints/amplitude2.txt", // подвижная платформа
+		2: "../wolfram/paramsAndPoints/amplitude3.txt", // метроном 1
+		3: "../wolfram/paramsAndPoints/amplitude4.txt", // метроном 2
+	}
+
+	for _, id := range nodeIDs {
+		filePath, exists := amplitudeFiles[id]
+		if !exists {
+			continue
+		}
+
+		file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		if err != nil {
+			fmt.Printf("Ошибка при открытии файла %s: %v\n", filePath, err)
+			continue
+		}
+
+		extremaList := extrema[id]
+		// Записываем все пары (время, амплитуда) для найденных экстремумов
+		for _, ext := range extremaList {
+			fmt.Fprintf(file, "%.10f %.10f\n", ext.Time, ext.Amplitude)
+		}
+
+		fmt.Printf("Узел %d: записано %d экстремумов в файл %s\n", id, len(extremaList), filePath)
+		file.Close()
+	}
 }
 
 func PrintGraph(graph *config.Graph) {
