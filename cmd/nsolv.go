@@ -27,8 +27,8 @@ type ExtremaPoint struct {
 
 func main() {
 	// Конфигурация теперь задаётся программно
-	t0 := 200.0
-	T := 220.0
+	t0 := 0.0
+	T := 20.0
 	dt := 0.001
 
 	// ===== НОВАЯ ГРАФОВАЯ СИСТЕМА =====
@@ -45,18 +45,18 @@ func solveWithGraph(t0, T, dt float64) {
 	fixedPlatform := config.NewFixedNode(0, 0.0)
 	graph.AddNode(fixedPlatform)
 	//  i   m   x    v
-	metronome1 := config.NewMovableNode(1, 1.210, 0.0010, 0.0, 0.0, 0.0)
+	metronome1 := config.NewMovableNode(1, 0.210, 0.001, 0.0, 0.0, 0.0)
 	graph.AddNode(metronome1)
 	//  i    m     x
-	metronome2 := config.NewMovableNode(2, 4.1, 0.008, 0.0, 0.0, 0.0) // платформа
-	graph.AddNode(metronome2)
+	mobilePlatform := config.NewMovableNode(2, 4.1, 0.000, 0.0, 0.0, 0.0) // платформа
+	graph.AddNode(mobilePlatform)
 
-	metronome3 := config.NewMovableNode(3, 1.210, 0.0, 1.0, 0.0, 0.0)
-	graph.AddNode(metronome3)
+	metronome2 := config.NewMovableNode(3, 0.210, 0.001, 0.0, 0.0, 0.0)
+	graph.AddNode(metronome2)
 	// n n_   k     d    L
-	graph.AddEdge(1, 2, 37.108, 0.1, 0.0)
-	graph.AddEdge(3, 2, 37.108, 0.1, 0.0)
-	graph.AddEdge(2, 0, 388.71, 0.1, 0.0)
+	graph.AddEdge(1, 2, 37.108, 2.1378, 0.0)
+	graph.AddEdge(3, 2, 37.108, 2.1378, 0.0)
+	graph.AddEdge(2, 0, 388.71, 3.2656, 0.0)
 	//graph.AddEdge(1, 2, 1.0, 0.0, 0.0)
 	PrintGraph(graph)
 
