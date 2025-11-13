@@ -27,7 +27,7 @@ type ExtremaPoint struct {
 
 func main() {
 	// Конфигурация теперь задаётся программно
-	t0 := 80.0
+	t0 := 200.0
 	T := 220.0
 	dt := 0.001
 
@@ -45,18 +45,18 @@ func solveWithGraph(t0, T, dt float64) {
 	fixedPlatform := config.NewFixedNode(0, 0.0)
 	graph.AddNode(fixedPlatform)
 	//  i   m   x    v
-	metronome1 := config.NewMovableNode(1, 0.075, 1.0, 0.0, 0.0, 0.0)
+	metronome1 := config.NewMovableNode(1, 1.210, 0.0010, 0.0, 0.0, 0.0)
 	graph.AddNode(metronome1)
 	//  i    m     x
-	metronome2 := config.NewMovableNode(2, 2.0, 2.0, 0.0, 0.0, 0.0) // платформа
+	metronome2 := config.NewMovableNode(2, 4.1, 0.008, 0.0, 0.0, 0.0) // платформа
 	graph.AddNode(metronome2)
 
-	metronome3 := config.NewMovableNode(3, 0.075, 1.5, 0.0, 0.0, 0.0)
+	metronome3 := config.NewMovableNode(3, 1.210, 0.0, 1.0, 0.0, 0.0)
 	graph.AddNode(metronome3)
 	// n n_   k     d    L
-	graph.AddEdge(1, 2, 2.24, 0.3, 0.0)
-	graph.AddEdge(3, 2, 2.2, 0.3, 0.0)
-	graph.AddEdge(2, 0, 0.00001, 0.4, 0.0)
+	graph.AddEdge(1, 2, 37.108, 0.1, 0.0)
+	graph.AddEdge(3, 2, 37.108, 0.1, 0.0)
+	graph.AddEdge(2, 0, 388.71, 0.1, 0.0)
 	//graph.AddEdge(1, 2, 1.0, 0.0, 0.0)
 	PrintGraph(graph)
 
@@ -146,9 +146,6 @@ func findExtrema(allPoints map[int][]Point, nodeIDs []int) map[int][]ExtremaPoin
 			curr := points[i]
 			next := points[i+1]
 
-			// Вычисляем численные производные слева и справа от текущей точки
-			// Производная слева: (curr - prev) / (curr.Time - prev.Time)
-			// Производная справа: (next - curr) / (next.Time - curr.Time)
 			dtLeft := curr.Time - prev.Time
 			dtRight := next.Time - curr.Time
 

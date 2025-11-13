@@ -2,6 +2,7 @@ package equationsolver
 
 import (
 	"masters/internal/config"
+	"math"
 )
 
 // GraphSolver решает систему уравнений для графа
@@ -120,6 +121,18 @@ func (s *GraphSolver) Step(t float64) {
 		// Формула РК4: новое = старое + dt/6 * (k1 + 2k2 + 2k3 + k4)
 		newPos := currPos[id] + s.dt/6*(currVel[id]+2*vel2[id]+2*vel3[id]+vel4[id])
 		newVel := currVel[id] + s.dt/6*(acc1[id]+2*acc2[id]+2*acc3[id]+acc4[id])
+
+		if math.Abs(newPos) > 10 {
+			log.Debugf("Time: %f", t)
+			log.Debugf("Id: %d", id)
+			log.Debugf("Error pos: %f", newPos)
+		}
+
+		if math.Abs(newVel) > 10 {
+			log.Debugf("Time: %f", t)
+			log.Debugf("Id: %d", id)
+			log.Debugf("Error vel: %f", newVel)
+		}
 
 		s.graph.UpdatePosition(id, newPos)
 		s.graph.UpdateVelocity(id, newVel)
