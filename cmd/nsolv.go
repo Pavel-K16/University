@@ -48,10 +48,10 @@ func solveWithGraph(t0, T, dt float64) {
 	metronome1 := config.NewMovableNode(1, 0.210, 0.001, 0.0, 0.0, 0.0)
 	graph.AddNode(metronome1)
 	//  i    m     x
-	mobilePlatform := config.NewMovableNode(2, 4.1, 0.000, 0.0, 0.0, 0.0) // платформа
+	mobilePlatform := config.NewMovableNode(2, 8.818, 0.000, 0.0, 0.0, 0.0) // платформа
 	graph.AddNode(mobilePlatform)
 
-	metronome2 := config.NewMovableNode(3, 0.210, 0.001, 0.0, 0.0, 0.0)
+	metronome2 := config.NewMovableNode(3, 0.210, -0.001, 0.0, 0.0, 0.0)
 	graph.AddNode(metronome2)
 	// n n_   k     d    L
 	graph.AddEdge(1, 2, 37.108, 2.1378, 0.0)
