@@ -110,9 +110,9 @@ func (g *Graph) NetForce(nodeID int) float64 {
 		// то сила отрицательна (тормозит узел)
 		//damperForce := -edge.D * dv
 
-		//damperForce := -edge.D * (dx*dx - 1) * dv // var der pol
+		damperForce := -edge.D * (dx*dx - 1) * dv // var der pol
 
-		damperForce := -edge.D * (180000*dx*dx - 1) * dv
+		//damperForce := -edge.D * (180000*dx*dx - 1) * dv
 		force += springForce + damperForce
 	}
 

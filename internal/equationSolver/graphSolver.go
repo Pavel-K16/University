@@ -128,11 +128,11 @@ func (s *GraphSolver) Step(t float64) {
 			log.Debugf("Error pos: %f", newPos)
 		}
 
-		if math.Abs(newVel) > 10 {
-			log.Debugf("Time: %f", t)
-			log.Debugf("Id: %d", id)
-			log.Debugf("Error vel: %f", newVel)
-		}
+		// if math.Abs(newVel) > 10 {
+		// 	log.Debugf("Time: %f", t)
+		// 	log.Debugf("Id: %d", id)
+		// 	log.Debugf("Error vel: %f", newVel)
+		// }
 
 		s.graph.UpdatePosition(id, newPos)
 		s.graph.UpdateVelocity(id, newVel)
