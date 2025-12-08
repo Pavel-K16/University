@@ -1,6 +1,5 @@
 package config
 
-// Edge представляет связь между двумя узлами
 type Edge struct {
 	TargetID int     // ID узла, с которым связан текущий узел
 	K        float64 // коэффициент жёсткости (k_ij)
@@ -8,7 +7,6 @@ type Edge struct {
 	Rest     float64 // длина покоя (обычно 0)
 }
 
-// Node представляет узел графа (тело) со всеми своими связями
 type Node struct {
 	ID       int     // уникальный идентификатор узла
 	Mass     float64 // масса узла
@@ -26,29 +24,27 @@ type Node struct {
 	IsFixed bool // если true, узел жёстко закреплён (не двигается)
 }
 
-// Graph представляет всю систему как граф
 type Graph struct {
-	Nodes []*Node // все узлы системы
+	Nodes []*Node 
 }
 
-// NewGraph создаёт новый пустой граф
 func NewGraph() *Graph {
 	return &Graph{Nodes: make([]*Node, 0)}
 }
 
-// AddNode добавляет узел в граф
 func (g *Graph) AddNode(node *Node) {
-	if len(g.Nodes) <= node.ID {
-		// Расширяем слайс если нужно
-		newNodes := make([]*Node, node.ID+1)
-		copy(newNodes, g.Nodes)
-		g.Nodes = newNodes
-	}
-	g.Nodes[node.ID] = node
+	g.Nodes = append(g.Nodes, node)
 }
 
-// AddEdge добавляет связь между узлами
-// Связь добавляется в оба узла (двунаправленная)
+func (g *Graph) NodesNumbers() []int {
+	numbers := make([]int, len(g.Nodes))
+	for i, node := range g.Nodes {
+		numbers[i] = node.ID
+	}
+
+	return numbers
+}
+
 func (g *Graph) AddEdge(fromID, toID int, k, d, rest float64) {
 	if fromID >= len(g.Nodes) || toID >= len(g.Nodes) {
 		return
