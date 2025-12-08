@@ -5,6 +5,7 @@ import (
 	"masters/internal/config"
 	equationsolver "masters/internal/equationSolver"
 	iofile "masters/internal/ioFile"
+
 	"masters/internal/logger"
 	"math"
 	"os"
@@ -92,6 +93,7 @@ func solveWithGraph(t0, T, dt float64) {
 	)
 
 	PrintGraph(graph)
+	iofile.InitInfluenceKoefMatrix(graph)
 
 	solver := equationsolver.NewGraphSolver(graph, dt)
 

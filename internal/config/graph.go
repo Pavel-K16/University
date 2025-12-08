@@ -111,6 +111,8 @@ func (g *Graph) NetForce(nodeID int) float64 {
 		//damperForce := -edge.D * (180000*dx*dx - 1) * dv
 		force += springForce + damperForce
 	}
+    
+    // вот тут нужно добавить влияние аэродинамики
 
 	return force
 }
