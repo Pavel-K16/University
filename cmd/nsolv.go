@@ -97,44 +97,44 @@ func solveWithGraph(t0, T, dt float64) {
 
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt)
 
-	nodeIDs := []int{0, 1, 2, 3}
-	allPoints := make(map[int][]Point)
-	for _, id := range nodeIDs {
-		allPoints[id] = make([]Point, 0)
-	}
+	// nodeIDs := []int{0, 1, 2, 3}
+	// allPoints := make(map[int][]Point)
+	// for _, id := range nodeIDs {
+	// 	allPoints[id] = make([]Point, 0)
+	// }
 
-	// Выполняем расчёт от t0 до T (с записью результатов)
-	fmt.Printf("Запускаем расчёт от t=%.2f до t=%.2f\n", t0, T)
-	iterations := 0
-	for t := t0; t <= T; t += dt {
-		solver.Step(t)
+	// // Выполняем расчёт от t0 до T (с записью результатов)
+	// fmt.Printf("Запускаем расчёт от t=%.2f до t=%.2f\n", t0, T)
+	// iterations := 0
+	// for t := t0; t <= T; t += dt {
+	// 	solver.Step(t)
 
-		for _, id := range nodeIDs {
-			node := graph.GetNode(id)
-			if node != nil {
-				allPoints[id] = append(allPoints[id], Point{
-					Time:     t,
-					Position: node.Position,
-				})
-			}
-		}
+	// 	for _, id := range nodeIDs {
+	// 		node := graph.GetNode(id)
+	// 		if node != nil {
+	// 			allPoints[id] = append(allPoints[id], Point{
+	// 				Time:     t,
+	// 				Position: node.Position,
+	// 			})
+	// 		}
+	// 	}
 
-		iterations++
-	}
+	// 	iterations++
+	// }
 
-	fmt.Printf("Расчёт завершён. Всего итераций: %d\n", iterations)
-	fmt.Printf("Анализируем экстремумы для каждого узла...\n")
+	// fmt.Printf("Расчёт завершён. Всего итераций: %d\n", iterations)
+	// fmt.Printf("Анализируем экстремумы для каждого узла...\n")
 
-	// Находим все экстремумы для каждого узла
-	extrema := findExtrema(allPoints, nodeIDs)
+	// // Находим все экстремумы для каждого узла
+	// extrema := FindExtrema(allPoints, nodeIDs)
 
-	// Записываем результаты экстремумов в файлы
-	writeExtremaToFiles(extrema, nodeIDs)
+	// // Записываем результаты экстремумов в файлы
+	// WriteExtremaToFiles(extrema, nodeIDs)
 }
 
-// findExtrema находит все локальные максимумы (амплитудные отклонения) для каждого узла
+// FindExtrema находит все локальные максимумы (амплитудные отклонения) для каждого узла
 // используя численную производную: максимум - когда производная слева положительная, справа отрицательная
-func findExtrema(allPoints map[int][]Point, nodeIDs []int) map[int][]ExtremaPoint {
+func FindExtrema(allPoints map[int][]Point, nodeIDs []int) map[int][]ExtremaPoint {
 	extrema := make(map[int][]ExtremaPoint)
 
 	for _, id := range nodeIDs {
@@ -184,8 +184,8 @@ func findExtrema(allPoints map[int][]Point, nodeIDs []int) map[int][]ExtremaPoin
 	return extrema
 }
 
-// writeExtremaToFiles записывает все найденные экстремумы (время, амплитуда) в соответствующие файлы
-func writeExtremaToFiles(extrema map[int][]ExtremaPoint, nodeIDs []int) {
+// WriteExtremaToFiles записывает все найденные экстремумы (время, амплитуда) в соответствующие файлы
+func WriteExtremaToFiles(extrema map[int][]ExtremaPoint, nodeIDs []int) {
 	// Имена файлов для амплитуд (соответствуют узлам)
 	amplitudeFiles := map[int]string{
 		0: "../wolfram/paramsAndPoints/amplitude1.txt", // неподвижная платформа
