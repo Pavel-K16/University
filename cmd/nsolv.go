@@ -93,7 +93,6 @@ func solveWithGraph(t0, T, dt float64) {
 		0.0,    // rest
 	)
 
-	PrintGraph(graph)
 	aero.InitInfluenceKoefMatrix(graph.NodesNumbers())
 	aero.SetFlowParameters(
 		350.0, // скорость
@@ -105,6 +104,8 @@ func solveWithGraph(t0, T, dt float64) {
 	solver := equationsolver.NewGraphSolver(graph, dt)
 
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt)
+
+	PrintGraph(graph)
 }
 
 // FindExtrema находит все локальные максимумы (амплитудные отклонения) для каждого узла

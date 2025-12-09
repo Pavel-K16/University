@@ -1,6 +1,9 @@
 package aero
 
-import "masters/internal/logger"
+import (
+	"masters/internal/logger"
+	"math"
+)
 
 type influenceKoefMatrix struct {
 	matrix [][]float64
@@ -8,6 +11,11 @@ type influenceKoefMatrix struct {
 	p      float64 // плотность
 	b      float64 // хорда профиля лопатки
 	m      float64 // обобщённая масса лопатки
+}
+
+type nodeAeroCoef struct {
+	ID   int
+	Koef float64
 }
 
 var (
@@ -31,11 +39,11 @@ func InitInfluenceKoefMatrix(numS []int) {
 	}
 }
 
-func GetInfluenceKoef(num1, num2 int) float64 {
-	if num1 >= len(matrix.matrix) || num2 >= len(matrix.matrix[0]) {
-		log.Errorf("num1 or num2 is out of range: %d, %d", num1, num2)
+func GetInfluenceKoefs(num int) []nodeAeroCoef {
+	if num >= len(matrix.matrix) {
+		log.Errorf("num1 or num2 is out of range: %d", num)
 
-		return 0
+		return nil
 	}
 
 	mapNum := make(map[int]int)
@@ -43,7 +51,36 @@ func GetInfluenceKoef(num1, num2 int) float64 {
 		mapNum[num] = i
 	}
 
-	return matrix.matrix[mapNum[num1]][mapNum[num2]]
+	nodesAeroCoef := make([]nodeAeroCoef, 0)
+
+	var id1, id2 int
+
+	if num+1 == len(matrix.matrix) {
+		id1 = 0       // next
+		id2 = num - 1 // prev
+	} else if num == 0 {
+		id1 = num + 1                // next
+		id2 = len(matrix.matrix) - 1 // prev
+	} else {
+		id1 = num + 1 // next
+		id2 = num - 1 // prev
+	}
+
+	if math.Abs(float64(id1)-float64(id2)) != 2 {
+		log.Errorf("Incorrect neighboor nodes id. Curr %d, Next: %d, Prev: %d", num, id1, id2)
+	}
+
+	nodesAeroCoef = append(nodesAeroCoef, nodeAeroCoef{
+		ID:   id1, // next
+		Koef: 1,
+	})
+
+	nodesAeroCoef = append(nodesAeroCoef, nodeAeroCoef{
+		ID:   id2, // prev
+		Koef: -1,
+	})
+
+	return nodesAeroCoef
 }
 
 func SetInfluenceKoef(num1, num2 int, value float64) {

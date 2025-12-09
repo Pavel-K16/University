@@ -3,6 +3,7 @@ package config
 import (
 	"masters/internal/aero"
 	"masters/internal/logger"
+	"slices"
 )
 
 var (
@@ -115,11 +116,17 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 	aeroDinamicForce := 0.0
 	nodesIDs := g.NodesNumbers()
 
-	for _, id := range nodesIDs {
-		if id == nodeID {
-			continue
+	nodesKoef := aero.GetInfluenceKoefs(nodeID)
+
+	for _, nodeKoef := range nodesKoef {
+		if !slices.Contains(nodesIDs, nodeKoef.ID) {
+			log.Errorf("node %d does't exist in the graph.", nodeKoef.ID)
+			log.Errorf("Nodes in graph %+v", nodesIDs)
+
+			return 0
 		}
-		aeroDinamicForce += aero.GetInfluenceKoef(id, nodeID) * g.Nodes[id].Position
+
+		aeroDinamicForce += nodeKoef.Koef * g.Nodes[nodeKoef.ID].Position
 	}
 
 	v := aero.GetFlowVelocity()
