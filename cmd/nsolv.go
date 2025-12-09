@@ -93,45 +93,14 @@ func solveWithGraph(t0, T, dt float64) {
 	)
 
 	PrintGraph(graph)
-	iofile.InitInfluenceKoefMatrix(graph)
+	iofile.InitInfluenceKoefMatrix(graph.NodesNumbers())
+
+	// Устанавливаем функцию для получения коэффициента аэродинамического влияния
+	graph.AeroInfluenceFunc = iofile.GetInfluenceKoef
 
 	solver := equationsolver.NewGraphSolver(graph, dt)
 
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt)
-
-	// nodeIDs := []int{0, 1, 2, 3}
-	// allPoints := make(map[int][]Point)
-	// for _, id := range nodeIDs {
-	// 	allPoints[id] = make([]Point, 0)
-	// }
-
-	// // Выполняем расчёт от t0 до T (с записью результатов)
-	// fmt.Printf("Запускаем расчёт от t=%.2f до t=%.2f\n", t0, T)
-	// iterations := 0
-	// for t := t0; t <= T; t += dt {
-	// 	solver.Step(t)
-
-	// 	for _, id := range nodeIDs {
-	// 		node := graph.GetNode(id)
-	// 		if node != nil {
-	// 			allPoints[id] = append(allPoints[id], Point{
-	// 				Time:     t,
-	// 				Position: node.Position,
-	// 			})
-	// 		}
-	// 	}
-
-	// 	iterations++
-	// }
-
-	// fmt.Printf("Расчёт завершён. Всего итераций: %d\n", iterations)
-	// fmt.Printf("Анализируем экстремумы для каждого узла...\n")
-
-	// // Находим все экстремумы для каждого узла
-	// extrema := FindExtrema(allPoints, nodeIDs)
-
-	// // Записываем результаты экстремумов в файлы
-	// WriteExtremaToFiles(extrema, nodeIDs)
 }
 
 // FindExtrema находит все локальные максимумы (амплитудные отклонения) для каждого узла

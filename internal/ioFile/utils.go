@@ -2,11 +2,10 @@ package iofile
 
 import (
 	"fmt"
-	"masters/internal/config"
+	config "masters/internal/config"
 	equationsolver "masters/internal/equationSolver"
 	"masters/internal/logger"
 	"os"
-	"strconv"
 )
 
 var (
@@ -15,16 +14,13 @@ var (
 )
 
 func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *config.Graph, t0, T, dt float64) {
-
 	nodesNum := graph.NodesNumbers()
-
-	log.Debugf("nodesNum: %v", nodesNum)
 
 	graphPointsFiles := make([]*os.File, 0, len(nodesNum))
 
 	for i := range nodesNum {
 		k := i + 1
-		graphPointsFile, _ := os.OpenFile(fmt.Sprintf(graphPointsFileTmpl, strconv.Itoa(k)), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		graphPointsFile, _ := os.OpenFile(fmt.Sprintf(graphPointsFileTmpl, fmt.Sprintf("%d", k)), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 		graphPointsFiles = append(graphPointsFiles, graphPointsFile)
 	}
 

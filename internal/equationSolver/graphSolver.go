@@ -2,7 +2,12 @@ package equationsolver
 
 import (
 	"masters/internal/config"
+	"masters/internal/logger"
 	"math"
+)
+
+var (
+	log = logger.LoggerInit()
 )
 
 // GraphSolver решает систему уравнений для графа

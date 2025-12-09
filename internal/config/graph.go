@@ -1,10 +1,16 @@
 package config
 
+// AeroInfluenceFunc - функция для получения коэффициента аэродинамического влияния
+// sourceID - ID узла-источника (колеблется)
+// targetID - ID узла-цели (испытывает силу)
+// Возвращает коэффициент влияния
+type AeroInfluenceFunc func(sourceID, targetID int) float64
+
 type Edge struct {
 	TargetID int     // ID узла, с которым связан текущий узел
 	K        float64 // коэффициент жёсткости (k_ij)
 	D        float64 // коэффициент демпфирования (d_ij)
-	Rest     float64 // длина покоя (обычно 0)
+	Rest     float64 // длина покоя (обычноW 0)
 }
 
 type Node struct {
@@ -25,7 +31,10 @@ type Node struct {
 }
 
 type Graph struct {
-	Nodes []*Node 
+	Nodes []*Node
+	// Функция для получения коэффициента аэродинамического влияния
+	// Если nil, аэродинамическое влияние не учитывается
+	AeroInfluenceFunc AeroInfluenceFunc
 }
 
 func NewGraph() *Graph {
@@ -111,8 +120,22 @@ func (g *Graph) NetForce(nodeID int) float64 {
 		//damperForce := -edge.D * (180000*dx*dx - 1) * dv
 		force += springForce + damperForce
 	}
-    
-    // вот тут нужно добавить влияние аэродинамики
+
+	// 3. Аэродинамическое влияние от всех остальных узлов
+	if g.AeroInfluenceFunc != nil {
+		nodesIDs := g.NodesNumbers()
+		aeroDinamicForce := 0.0
+
+		for _, id := range nodesIDs {
+			if id == nodeID {
+				continue
+			}
+			// Вызываем функцию для получения коэффициента влияния
+			aeroDinamicForce += g.AeroInfluenceFunc(id, nodeID)
+		}
+
+		force += aeroDinamicForce
+	}
 
 	return force
 }
