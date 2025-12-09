@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"masters/internal/aero"
 	"masters/internal/config"
 	equationsolver "masters/internal/equationSolver"
 	iofile "masters/internal/ioFile"
@@ -93,10 +94,13 @@ func solveWithGraph(t0, T, dt float64) {
 	)
 
 	PrintGraph(graph)
-	iofile.InitInfluenceKoefMatrix(graph.NodesNumbers())
-
-	// Устанавливаем функцию для получения коэффициента аэродинамического влияния
-	graph.AeroInfluenceFunc = iofile.GetInfluenceKoef
+	aero.InitInfluenceKoefMatrix(graph.NodesNumbers())
+	aero.SetFlowParameters(
+		350.0, // скорость
+		2.0,   // плотность
+		0.12,  // длина хорды
+		0.5,   // обобщённая масаа
+	)
 
 	solver := equationsolver.NewGraphSolver(graph, dt)
 

@@ -1,10 +1,13 @@
 package config
 
-// AeroInfluenceFunc - функция для получения коэффициента аэродинамического влияния
-// sourceID - ID узла-источника (колеблется)
-// targetID - ID узла-цели (испытывает силу)
-// Возвращает коэффициент влияния
-type AeroInfluenceFunc func(sourceID, targetID int) float64
+import (
+	"masters/internal/aero"
+	"masters/internal/logger"
+)
+
+var (
+	log = logger.LoggerInit()
+)
 
 type Edge struct {
 	TargetID int     // ID узла, с которым связан текущий узел
@@ -32,9 +35,6 @@ type Node struct {
 
 type Graph struct {
 	Nodes []*Node
-	// Функция для получения коэффициента аэродинамического влияния
-	// Если nil, аэродинамическое влияние не учитывается
-	AeroInfluenceFunc AeroInfluenceFunc
 }
 
 func NewGraph() *Graph {
@@ -89,31 +89,16 @@ func (g *Graph) NetForce(nodeID int) float64 {
 
 	var force float64 = 0.0
 
-	// 1. Собственные силы узла (не используются в текущей задаче)
-	// force += -node.K * node.Position // пружина относительно земли
-	// force += -node.D * node.Velocity // демпфер относительно земли
-
-	// 2. Силы от всех связей этого узла
-	// Проходим по всем рёбрам узла, забираем параметры связанных узлов
 	for _, edge := range node.Edges {
 		targetNode := g.Nodes[edge.TargetID]
 		if targetNode == nil {
 			continue
 		}
 
-		// Вычисляем положение и скорость относительно связанного узла
 		dx := node.Position - targetNode.Position - edge.Rest // деформация пружины
 		dv := node.Velocity - targetNode.Velocity             // относительная скорость
 
-		// Сила от пружины: F = -k * dx
-		// Противодействует растяжению: если dx > 0 (пружина растянута),
-		// то сила отрицательна (притягивает узел к другому узлу)
 		springForce := -edge.K * dx
-
-		// Сила от демпфера: F = -d * dv
-		// Противодействует движению: если dv > 0 (узел движется быстрее),
-		// то сила отрицательна (тормозит узел)
-		//damperForce := -edge.D * dv
 
 		damperForce := -edge.D * (dx*dx - 1) * dv // var der pol
 
@@ -121,23 +106,31 @@ func (g *Graph) NetForce(nodeID int) float64 {
 		force += springForce + damperForce
 	}
 
-	// 3. Аэродинамическое влияние от всех остальных узлов
-	if g.AeroInfluenceFunc != nil {
-		nodesIDs := g.NodesNumbers()
-		aeroDinamicForce := 0.0
+	aeroForce := GetAeroForce(g, nodeID)
 
-		for _, id := range nodesIDs {
-			if id == nodeID {
-				continue
-			}
-			// Вызываем функцию для получения коэффициента влияния
-			aeroDinamicForce += g.AeroInfluenceFunc(id, nodeID)
+	return force + aeroForce
+}
+
+func GetAeroForce(g *Graph, nodeID int) float64 {
+	aeroDinamicForce := 0.0
+	nodesIDs := g.NodesNumbers()
+
+	for _, id := range nodesIDs {
+		if id == nodeID {
+			continue
 		}
-
-		force += aeroDinamicForce
+		aeroDinamicForce += aero.GetInfluenceKoef(id, nodeID) * g.Nodes[id].Position
 	}
 
-	return force
+	v := aero.GetFlowVelocity()
+	rho := aero.GetFlowDensity()
+	b := aero.GetBladeChord()
+	m := aero.GetBladeMass()
+
+	koeff := 0.5 * v * v * b * rho / m
+	aeroDinamicForce *= koeff
+
+	return aeroDinamicForce
 }
 
 // GetNode возвращает узел по ID

@@ -1,15 +1,19 @@
-package iofile
+package aero
+
+import "masters/internal/logger"
 
 type influenceKoefMatrix struct {
 	matrix [][]float64
 	v      float64 // скорость
 	p      float64 // плотность
 	b      float64 // хорда профиля лопатки
+	m      float64 // обобщённая масса лопатки
 }
 
 var (
 	matrix   influenceKoefMatrix
 	nodesNum []int
+	log      = logger.LoggerInit()
 )
 
 func InitInfluenceKoefMatrix(numS []int) {
@@ -55,12 +59,14 @@ func SetInfluenceKoef(num1, num2 int, value float64) {
 	}
 
 	matrix.matrix[mapNum[num1]][mapNum[num2]] = value
+	matrix.matrix[mapNum[num2]][mapNum[num1]] = value
 }
 
-func SetFlowParameters(v, p, b float64) { // скорость, плотность, хорда профиля лопатки
+func SetFlowParameters(v, p, b, m float64) { // скорость, плотность, хорда профиля лопатки, обобщённая масса лопатки
 	matrix.v = v
 	matrix.p = p
 	matrix.b = b
+	matrix.m = m
 }
 
 func GetFlowVelocity() float64 {
@@ -73,4 +79,8 @@ func GetFlowDensity() float64 {
 
 func GetBladeChord() float64 {
 	return matrix.b
+}
+
+func GetBladeMass() float64 {
+	return matrix.m
 }
