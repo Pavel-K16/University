@@ -10,6 +10,18 @@ var (
 	log = logger.LoggerInit()
 )
 
+// Point представляет точку на графике (время, позиция)
+type Point struct {
+	Time     float64
+	Position float64
+}
+
+// ExtremaPoint представляет точку экстремума (время, амплитуда)
+type ExtremaPoint struct {
+	Time      float64 // момент времени экстремума
+	Amplitude float64 // абсолютное значение амплитуды
+}
+
 type Edge struct {
 	TargetID int     // ID узла, с которым связан текущий узел
 	K        float64 // коэффициент жёсткости (k_ij)

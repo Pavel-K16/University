@@ -9,8 +9,10 @@ import (
 )
 
 var (
-	graphPointsFileTmpl = "../wolfram/paramsAndPoints/graph_points%s.txt"
-	log                 = logger.LoggerInit()
+	GraphPointsFileTmpl     = "../wolfram/paramsAndPoints/graph_points%s.txt"
+	log                     = logger.LoggerInit()
+	kineticEnergyFilePath   = "../wolfram/paramsAndPoints/kineticEnergyPoints.txt"
+	potentialEnergyFilePath = "../wolfram/paramsAndPoints/potentialEnergyPoints.txt"
 )
 
 var KineticEnergy []float64
@@ -22,11 +24,16 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *config.G
 	graphPointsFiles := make([]*os.File, 0, len(nodesNum))
 
 	for _, node := range graph.Nodes {
-		graphPointsFile, _ := os.OpenFile(fmt.Sprintf(graphPointsFileTmpl, fmt.Sprintf("%d", node.ID)), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		graphPointsFile, _ := os.OpenFile(fmt.Sprintf(GraphPointsFileTmpl, fmt.Sprintf("%d", node.ID)), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 		graphPointsFiles = append(graphPointsFiles, graphPointsFile)
 	}
 
 	defer closeGraphPointsFiles(graphPointsFiles)
+	kineticEnergyFile, _ := os.OpenFile(kineticEnergyFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	potentialEnergyFile, _ := os.OpenFile(potentialEnergyFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+
+	defer kineticEnergyFile.Close()
+	defer potentialEnergyFile.Close()
 
 	if t0 > 0 {
 		fmt.Printf("Эволюция системы от t=0 до t=%.2f (без записи)\n", t0)
@@ -51,9 +58,9 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *config.G
 		}
 
 		kineticEnergy := graph.TotalKineticEnergy()
-		KineticEnergy = append(KineticEnergy, kineticEnergy)
+		fmt.Fprintf(kineticEnergyFile, "%.10f %.10f\n", t, kineticEnergy)
 		potentialEnergy := graph.TotalPotentialEnergy()
-		PotentialEnergy = append(PotentialEnergy, potentialEnergy)
+		fmt.Fprintf(potentialEnergyFile, "%.10f %.10f\n", t, potentialEnergy)
 	}
 }
 
