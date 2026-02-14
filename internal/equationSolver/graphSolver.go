@@ -42,11 +42,13 @@ func computeAccelerations(graph *config.Graph, positions, velocities map[int]flo
 	// Вычисляем ускорения
 	accelerations := make(map[int]float64)
 	for id := range graph.Nodes {
+		a := 0.0
 		node := graph.Nodes[id]
 		if node.IsFixed || node.Mass == 0 {
 			accelerations[id] = 0
 		} else {
-			accelerations[id] = graph.NetForce(id) / node.Mass
+			a = graph.NetForce(id)
+			accelerations[id] = a / node.Mass
 		}
 	}
 

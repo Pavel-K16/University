@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	_ = logger.LoggerInit() // Logger for debugging
+	log = logger.LoggerInit() // Logger for debugging
 )
 
 // Point представляет точку на графике (время, позиция)
@@ -30,9 +30,9 @@ type ExtremaPoint struct {
 
 func main() {
 	// Конфигурация теперь задаётся программно
-	t0 := 10.0
-	T := 30.0
-	dt := 0.01
+	t0 := 0.0
+	T := 10.0
+	dt := 0.1
 
 	// ===== НОВАЯ ГРАФОВАЯ СИСТЕМА =====
 	solveWithGraph(t0, T, dt)
@@ -49,60 +49,99 @@ func solveWithGraph(t0, T, dt float64) {
 
 	graph := config.NewGraph()
 
-	fixedPlatform := config.NewFixedNode(0, 0.0)
-	graph.AddNode(fixedPlatform)
+	metronome0 := config.NewMovableNode(0,
+		1.0,
+		1.0,
+		0.0,
+		0.0,
+		0.0,
+	)
+	graph.AddNode(metronome0)
 
 	metronome1 := config.NewMovableNode(1,
-		0.210,
-		0.003,
+		1.0,
+		2.0,
 		0.0,
 		0.0,
 		0.0,
 	)
 	graph.AddNode(metronome1)
 
-	mobilePlatform := config.NewMovableNode(2,
-		15.0,
-		-0.002,
-		0.0,
-		0.0,
-		0.0,
-	)
-	graph.AddNode(mobilePlatform)
-
-	metronome2 := config.NewMovableNode(3,
-		0.210,
-		-0.003,
+	metronome2 := config.NewMovableNode(2,
+		1.0,
+		3.0,
 		0.0,
 		0.0,
 		0.0,
 	)
 	graph.AddNode(metronome2)
 
+	metronome3 := config.NewMovableNode(3,
+		1.0,
+		4.0,
+		0.0,
+		0.0,
+		0.0,
+	)
+	graph.AddNode(metronome3)
+
+	fixedPlatform := config.NewFixedNode(4, 0.0)
+	graph.AddNode(fixedPlatform)
+
+	graph.AddEdge(0, 1,
+		1.0, // k [Н/м] - одинаковая жёсткость для обоих метрономов
+		0.0, // d [Н·с/м] - демпфирование
+		0.0, // rest - длина покоя
+	)
+
 	graph.AddEdge(1, 2,
-		37.108, // k [Н/м] - одинаковая жёсткость для обоих метрономов
-		2.1378, // d [Н·с/м] - демпфирование
-		0.0,    // rest - длина покоя
+		1.0, // k [Н/м] - одинаковая жёсткость
+		0.0, // d [Н·с/м] - демпфирование
+		0.0, // rest
 	)
 
-	graph.AddEdge(3, 2,
-		37.108, // k [Н/м] - одинаковая жёсткость
-		2.1378, // d [Н·с/м] - демпфирование
-		0.0,    // rest
+	graph.AddEdge(2, 3,
+		1.0, // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
+		0.0, // d₃ [Н·с/м] - демпфирование
+		0.0, // rest
 	)
 
-	graph.AddEdge(2, 0,
-		600.0,  // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
-		3.2656, // d₃ [Н·с/м] - демпфирование
-		0.0,    // rest
+	graph.AddEdge(0, 3,
+		1.0, // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
+		0.0, // d₃ [Н·с/м] - демпфирование
+		0.0, // rest
+	)
+
+	graph.AddEdge(0, 4,
+		1.0, // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
+		0.0, // d₃ [Н·с/м] - демпфирование
+		0.0, // rest
+	)
+
+	graph.AddEdge(1, 4,
+		1.0, // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
+		0.0, // d₃ [Н·с/м] - демпфирование
+		0.0, // rest
+	)
+
+	graph.AddEdge(2, 4,
+		1.0, // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
+		0.0, // d₃ [Н·с/м] - демпфирование
+		0.0, // rest
+	)
+
+	graph.AddEdge(3, 4,
+		1.0, // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
+		0.0, // d₃ [Н·с/м] - демпфирование
+		0.0, // rest
 	)
 
 	aero.InitInfluenceKoefMatrix(graph.NodesNumbers())
 	aero.SetFlowParameters(
-		350.0, // скорость
-		2.0,   // плотность
-		0.12,  // длина хорды
-		0.5,   // обобщённая масаа
+		1.0, // скорость
+		1.0, // плотность
+		1.0, // длина хорды
+		1.0, // обобщённая масаа
 	)
 
 	solver := equationsolver.NewGraphSolver(graph, dt)
@@ -110,6 +149,22 @@ func solveWithGraph(t0, T, dt float64) {
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt)
 
 	PrintGraph(graph)
+
+	len1 := len(iofile.KineticEnergy)
+	len2 := len(iofile.PotentialEnergy)
+	log.Debugf("Len1 : %d Len2 : %d", len1, len2)
+
+	for i := 0; i < len1; i++ {
+		log.Debugf("PotEn: %.2f, KinEn: %.2f:", iofile.PotentialEnergy[i], iofile.KineticEnergy[i])
+	}
+}
+
+func findMin(l1, l2 int) int {
+	if l1 < l2 {
+		return l1
+	} else {
+		return l2
+	}
 }
 
 // FindExtrema находит все локальные максимумы (амплитудные отклонения) для каждого узла

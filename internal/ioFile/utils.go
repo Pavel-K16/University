@@ -13,6 +13,9 @@ var (
 	log                 = logger.LoggerInit()
 )
 
+var KineticEnergy []float64
+var PotentialEnergy []float64
+
 func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *config.Graph, t0, T, dt float64) {
 	nodesNum := graph.NodesNumbers()
 
@@ -47,6 +50,11 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *config.G
 
 			fmt.Fprintf(file, "%.10f %.10f\n", t, node.Position)
 		}
+
+		kineticEnergy := graph.TotalKineticEnergy()
+		KineticEnergy = append(KineticEnergy, kineticEnergy)
+		potentialEnergy := graph.TotalPotentialEnergy()
+		PotentialEnergy = append(PotentialEnergy, potentialEnergy)
 	}
 }
 

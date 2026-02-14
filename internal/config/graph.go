@@ -107,15 +107,41 @@ func (g *Graph) NetForce(nodeID int) float64 {
 
 		springForce := -edge.K * dx
 
-		damperForce := -edge.D * (dx*dx - 1) * dv // var der pol
+		damperForce := -edge.D * dv //(dx*dx - 1) * dv // var der pol
 
 		//damperForce := -edge.D * (180000*dx*dx - 1) * dv
 		force += springForce + damperForce
 	}
 
-	aeroForce := GetAeroForce(g, nodeID)
+	aeroForce := 0.0 //GetAeroForce(g, nodeID)
 
 	return force + aeroForce
+}
+
+func (g *Graph) TotalPotentialEnergy() float64 {
+	var sum float64
+	for _, node := range g.Nodes {
+		for _, edge := range node.Edges {
+			target := g.GetNode(edge.TargetID)
+			if target == nil {
+				continue
+			}
+			dx := node.Position - target.Position - edge.Rest
+			sum += 0.25 * edge.K * dx * dx
+		}
+	}
+	return sum
+}
+
+func (g *Graph) TotalKineticEnergy() float64 {
+	var sum float64
+	for _, node := range g.Nodes {
+		if node.IsFixed {
+			continue
+		}
+		sum += 0.5 * node.Mass * node.Velocity * node.Velocity
+	}
+	return sum
 }
 
 func GetAeroForce(g *Graph, nodeID int) float64 {
@@ -138,10 +164,10 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 	v := aero.GetFlowVelocity()
 	rho := aero.GetFlowDensity()
 	b := aero.GetBladeChord()
-	m := aero.GetBladeMass()
+	//m := aero.GetBladeMass()
 
-	koeff := 0.5 * v * v * b * rho / m
-	aeroDinamicForce *= koeff
+	koeff := 0.5 * v * v * b * rho
+	aeroDinamicForce *= koeff * 0
 
 	return aeroDinamicForce
 }
