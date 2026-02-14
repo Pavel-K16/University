@@ -180,7 +180,7 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 	//m := aero.GetBladeMass()
 
 	koeff := 0.5 * v * v * b * rho
-	aeroDinamicForce *= koeff * 0
+	aeroDinamicForce *= koeff * 1
 
 	return aeroDinamicForce
 }

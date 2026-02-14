@@ -37,15 +37,25 @@ type EdgeConfig struct {
 }
 
 const (
-	confJsonPath = "../internal/config/confs/conf.json"
+	confDir     = "../internal/config/confs" // относительно cwd при запуске из scripts/
+	defaultConf = "conf"
 )
+
+func ConfigPath() string {
+	name := os.Getenv("CONFIG")
+	if name == "" {
+		name = defaultConf
+	}
+	return confDir + "/" + name + ".json"
+}
 
 var (
 	log = logger.LoggerInit()
 )
 
 func loadGraphConfig() (*GraphConfig, error) {
-	data, err := os.ReadFile(confJsonPath)
+	path := ConfigPath()
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
