@@ -18,7 +18,7 @@ var (
 func main() {
 	// Конфигурация теперь задаётся программно
 	t0 := 0.0
-	T := 10.0
+	T := 100.0
 	dt := 0.1
 
 	// ===== НОВАЯ ГРАФОВАЯ СИСТЕМА =====
@@ -136,12 +136,16 @@ func solveWithGraph(t0, T, dt float64) {
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt)
 
 	PrintGraph(graph)
+
+	//findExtrema(graph)
+}
+
+func findExtrema(graph *config.Graph) {
 	for _, node := range graph.Nodes {
 		if err := utils.FindExtrema(node.ID); err != nil {
-			log.Errorf("Error finding extrema 4 node: %s, err: %s", node.ID, err)
+			log.Errorf("Error finding extrema 4 node: %d, err: %s", node.ID, err)
 		}
 	}
-
 }
 
 func findMin(l1, l2 int) int {

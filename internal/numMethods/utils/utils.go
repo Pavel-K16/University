@@ -37,6 +37,7 @@ func VecMult(k float64, a []float64) []float64 {
 
 func FindExtrema(nodeID int) error {
 	points, err := GetPointsFromFile(nodeID)
+
 	if err != nil {
 		log.Errorf("Error: %s", err)
 
@@ -44,6 +45,8 @@ func FindExtrema(nodeID int) error {
 	}
 
 	if len(points) < 3 {
+		log.Warningf("NodeID: %d, need more than 3 points", nodeID)
+
 		return nil
 	}
 
@@ -107,7 +110,7 @@ func writeExtremasToFile(nodeID int, extremaList []config.ExtremaPoint) error {
 
 func GetPointsFromFile(nodeID int) ([]config.Point, error) {
 	points := make([]config.Point, 0)
-	filePath := fmt.Sprintf(iofile.GraphPointsFileTmpl, nodeID)
+	filePath := fmt.Sprintf(iofile.GraphPointsFileTmpl, fmt.Sprintf("%d", nodeID))
 
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -124,12 +127,15 @@ func GetPointsFromFile(nodeID int) ([]config.Point, error) {
 		return nil, err
 	}
 
-	strSData := strings.Split(string(data), "/n")
+	strSData := strings.Split(string(data), "\n")
 	for _, str := range strSData {
 		str = strings.TrimSpace(str)
-		splittedStr := strings.Split(str, "")
+		if str == "" {
+			continue
+		}
+		splittedStr := strings.Fields(str)
 		if len(splittedStr) != 2 {
-			return nil, err
+			continue
 		}
 
 		t, err := strconv.ParseFloat(splittedStr[0], 64)
