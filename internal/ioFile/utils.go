@@ -10,13 +10,15 @@ import (
 
 var (
 	GraphPointsFileTmpl     = "../wolfram/paramsAndPoints/graph_points%s.txt"
-	log                     = logger.LoggerInit()
 	kineticEnergyFilePath   = "../wolfram/paramsAndPoints/kineticEnergyPoints.txt"
 	potentialEnergyFilePath = "../wolfram/paramsAndPoints/potentialEnergyPoints.txt"
 )
 
-var KineticEnergy []float64
-var PotentialEnergy []float64
+var KineticEnergy, PotentialEnergy []float64
+
+var (
+	log = logger.LoggerInit()
+)
 
 func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Graph, t0, T, dt float64) {
 	nodesNum := graph.NodesNumbers()

@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 	"masters/internal/aero"
+	config "masters/internal/config"
 	equationsolver "masters/internal/equationSolver"
 	g "masters/internal/graph"
 	iofile "masters/internal/ioFile"
-	"masters/internal/numMethods/utils"
-
 	"masters/internal/logger"
+	"masters/internal/numMethods/utils"
 )
 
 var (
@@ -16,19 +16,13 @@ var (
 )
 
 func main() {
-	// Конфигурация теперь задаётся программно
 	t0 := 0.0
 	T := 100.0
 	dt := 0.1
 
-	// ===== НОВАЯ ГРАФОВАЯ СИСТЕМА =====
 	solveWithGraph(t0, T, dt)
 }
 
-// Текущая реализация немного костыльная
-// Для корректной работы необходимо фиксирующий узел
-// добавить последним в граф
-// надо будет подумать над тем как это исправить
 func solveWithGraph(t0, T, dt float64) {
 	fmt.Println("\n=== Решение задачи о метрономах через графовую систему ===")
 	fmt.Printf("Начальные условия: t=0\n")
@@ -36,92 +30,7 @@ func solveWithGraph(t0, T, dt float64) {
 
 	graph := g.NewGraph()
 
-	metronome0 := g.NewMovableNode(0,
-		1.0,
-		1.0,
-		0.0,
-		0.0,
-		0.0,
-	)
-	graph.AddNode(metronome0)
-
-	metronome1 := g.NewMovableNode(1,
-		1.0,
-		2.0,
-		0.0,
-		0.0,
-		0.0,
-	)
-	graph.AddNode(metronome1)
-
-	metronome2 := g.NewMovableNode(2,
-		1.0,
-		3.0,
-		0.0,
-		0.0,
-		0.0,
-	)
-	graph.AddNode(metronome2)
-
-	metronome3 := g.NewMovableNode(3,
-		1.0,
-		4.0,
-		0.0,
-		0.0,
-		0.0,
-	)
-	graph.AddNode(metronome3)
-
-	fixedPlatform := g.NewFixedNode(4, 0.0)
-	graph.AddNode(fixedPlatform)
-
-	graph.AddEdge(0, 1,
-		1.0, // k [Н/м] - одинаковая жёсткость для обоих метрономов
-		0.0, // d [Н·с/м] - демпфирование
-		0.0, // rest - длина покоя
-	)
-
-	graph.AddEdge(1, 2,
-		1.0, // k [Н/м] - одинаковая жёсткость
-		0.0, // d [Н·с/м] - демпфирование
-		0.0, // rest
-	)
-
-	graph.AddEdge(2, 3,
-		1.0, // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
-		0.0, // d₃ [Н·с/м] - демпфирование
-		0.0, // rest
-	)
-
-	graph.AddEdge(0, 3,
-		1.0, // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
-		0.0, // d₃ [Н·с/м] - демпфирование
-		0.0, // rest
-	)
-
-	graph.AddEdge(0, 4,
-		1.0, // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
-		0.0, // d₃ [Н·с/м] - демпфирование
-		0.0, // rest
-	)
-
-	graph.AddEdge(1, 4,
-		1.0, // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
-		0.0, // d₃ [Н·с/м] - демпфирование
-		0.0, // rest
-	)
-
-	graph.AddEdge(2, 4,
-		1.0, // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
-		0.0, // d₃ [Н·с/м] - демпфирование
-		0.0, // rest
-	)
-
-	graph.AddEdge(3, 4,
-		1.0, // k₃ [Н/м] - УВЕЛИЧЕННАЯ жёсткость для собственной частоты платформы
-		0.0, // d₃ [Н·с/м] - демпфирование
-		0.0, // rest
-	)
+	config.CreateGraph(graph)
 
 	aero.InitInfluenceKoefMatrix(graph.NodesNumbers())
 	aero.SetFlowParameters(
