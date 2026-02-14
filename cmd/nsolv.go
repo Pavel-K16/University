@@ -16,9 +16,16 @@ var (
 )
 
 func main() {
-	t0 := 0.0
-	T := 100.0
-	dt := 0.1
+	times, err := config.SetTimes()
+	if err != nil {
+		log.Errorf("Error: %s", err)
+
+		return
+	}
+
+	T := times[0]
+	t0 := times[1]
+	dt := times[2]
 
 	solveWithGraph(t0, T, dt)
 }

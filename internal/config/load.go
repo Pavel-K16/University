@@ -9,8 +9,15 @@ import (
 )
 
 type GraphConfig struct {
+	Times TimesConfig  `json:"times"`
 	Nodes []NodeConfig `json:"nodes"`
 	Edges []EdgeConfig `json:"edges"`
+}
+
+type TimesConfig struct {
+	T0 float64 `json:"t0"`
+	T  float64 `json:"t"`
+	Dt float64 `json:"dt"`
 }
 
 type NodeConfig struct {
@@ -95,4 +102,29 @@ func CreateGraph(graph *g.Graph) error {
 	}
 
 	return nil
+}
+
+func SetTimes() ([]float64, error) { // T,t0,dt
+	cnf, err := loadGraphConfig()
+	if err != nil {
+		log.Errorf("Error: %s", err)
+
+		return nil, err
+	}
+
+	if cnf == nil {
+		log.Errorf("Got empty config")
+
+		return nil, errors.New("Got empty config")
+	}
+
+	times := make([]float64, 0)
+
+	T := cnf.Times.T
+	t0 := cnf.Times.T0
+	dt := cnf.Times.Dt
+
+	times = append(times, T, t0, dt)
+
+	return times, nil
 }
