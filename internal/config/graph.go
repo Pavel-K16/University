@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"masters/internal/aero"
 	"masters/internal/logger"
 	"slices"
@@ -235,5 +236,48 @@ func NewMovableNode(id int, mass, position, velocity, k, d float64) *Node {
 		D:        d,
 		Edges:    make([]Edge, 0),
 		IsFixed:  false,
+	}
+}
+
+func (g *Graph) PrintGraph() {
+	fmt.Printf("\n=== Структура графа ===\n")
+
+	type EdgeKey struct {
+		from, to int
+	}
+
+	uniqueEdges := make(map[EdgeKey]bool)
+	totalLinks := 0
+	for _, node := range g.Nodes {
+		for _, edge := range node.Edges {
+			key := EdgeKey{node.ID, edge.TargetID}
+			if !uniqueEdges[key] {
+				uniqueEdges[key] = true
+				totalLinks++
+			}
+		}
+	}
+
+	fmt.Printf("Узлов в графе: %d\n", len(g.Nodes))
+	fmt.Printf("Всего связей: %d\n", totalLinks)
+	fmt.Printf("Длина пружины в ненапряжённом состоянии: rest\n")
+	fmt.Println()
+
+	// Выводим информацию о каждом узле
+	linkCounter := 1
+	for _, node := range g.Nodes {
+		fmt.Printf("Узел №%d: масса=%.2f, pos=%.2f, vel=%.2f",
+			node.ID, node.Mass, node.Position, node.Velocity)
+		if node.IsFixed {
+			fmt.Print(" [ЗАКРЕПЛЁН]")
+		}
+		fmt.Printf(" (связей: %d)\n", len(node.Edges))
+
+		// Выводим связи узла
+		for _, edge := range node.Edges {
+			fmt.Printf("  └─ связь №%d с узлом №%d: k=%.2f, d=%.2f, rest=%.2f\n",
+				linkCounter-1, edge.TargetID, edge.K, edge.D, edge.Rest)
+			linkCounter++
+		}
 	}
 }

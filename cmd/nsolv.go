@@ -135,7 +135,7 @@ func solveWithGraph(t0, T, dt float64) {
 
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt)
 
-	PrintGraph(graph)
+	graph.PrintGraph()
 
 	//findExtrema(graph)
 }
@@ -153,48 +153,5 @@ func findMin(l1, l2 int) int {
 		return l1
 	} else {
 		return l2
-	}
-}
-
-func PrintGraph(graph *config.Graph) {
-	fmt.Printf("\n=== Структура графа ===\n")
-
-	type EdgeKey struct {
-		from, to int
-	}
-
-	uniqueEdges := make(map[EdgeKey]bool)
-	totalLinks := 0
-	for _, node := range graph.Nodes {
-		for _, edge := range node.Edges {
-			key := EdgeKey{node.ID, edge.TargetID}
-			if !uniqueEdges[key] {
-				uniqueEdges[key] = true
-				totalLinks++
-			}
-		}
-	}
-
-	fmt.Printf("Узлов в графе: %d\n", len(graph.Nodes))
-	fmt.Printf("Всего связей: %d\n", totalLinks)
-	fmt.Printf("Длина пружины в ненапряжённом состоянии: rest\n")
-	fmt.Println()
-
-	// Выводим информацию о каждом узле
-	linkCounter := 1
-	for _, node := range graph.Nodes {
-		fmt.Printf("Узел №%d: масса=%.2f, pos=%.2f, vel=%.2f",
-			node.ID, node.Mass, node.Position, node.Velocity)
-		if node.IsFixed {
-			fmt.Print(" [ЗАКРЕПЛЁН]")
-		}
-		fmt.Printf(" (связей: %d)\n", len(node.Edges))
-
-		// Выводим связи узла
-		for _, edge := range node.Edges {
-			fmt.Printf("  └─ связь №%d с узлом №%d: k=%.2f, d=%.2f, rest=%.2f\n",
-				linkCounter-1, edge.TargetID, edge.K, edge.D, edge.Rest)
-			linkCounter++
-		}
 	}
 }
