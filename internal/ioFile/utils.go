@@ -21,9 +21,8 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *config.G
 
 	graphPointsFiles := make([]*os.File, 0, len(nodesNum))
 
-	for i := range nodesNum {
-		k := i + 1
-		graphPointsFile, _ := os.OpenFile(fmt.Sprintf(graphPointsFileTmpl, fmt.Sprintf("%d", k)), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	for _, node := range graph.Nodes {
+		graphPointsFile, _ := os.OpenFile(fmt.Sprintf(graphPointsFileTmpl, fmt.Sprintf("%d", node.ID)), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 		graphPointsFiles = append(graphPointsFiles, graphPointsFile)
 	}
 
@@ -42,7 +41,7 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *config.G
 	for t := t0; t <= T; t += dt {
 		solver.Step(t)
 		for idx, file := range graphPointsFiles {
-			node := graph.GetNode(nodesNum[idx])
+			node := graph.GetNode(idx)
 			if node == nil {
 				log.Errorf("node is nil for index: %d", idx)
 				continue
