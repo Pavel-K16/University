@@ -38,4 +38,7 @@ debug.test
 /dist/
 
 # Кэш Go
-go.work 
+go.work
+
+# Wolfram
+wolfram/
