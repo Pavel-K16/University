@@ -1,0 +1,47 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "fixed": false,
+      "mass": 1.0,
+      "position": 1.0,
+      "velocity": 0.0
+    },
+    {
+      "id": 1,
+      "fixed": false,
+      "mass": 1.0,
+      "position": 2.0,
+      "velocity": 0.0
+    },
+    {
+      "id": 2,
+      "fixed": false,
+      "mass": 1.0,
+      "position": 3.0,
+      "velocity": 0.0
+    },
+    {
+      "id": 3,
+      "fixed": false,
+      "mass": 1.0,
+      "position": 4.0,
+      "velocity": 0.0
+    },
+    {
+      "id": 4,
+      "fixed": true,
+      "position": 0.0
+    }
+  ],
+  "edges": [
+    { "from": 0, "to": 1, "k": 1.0, "d": 0.0, "rest": 0.0 },
+    { "from": 1, "to": 2, "k": 1.0, "d": 0.0, "rest": 0.0 },
+    { "from": 2, "to": 3, "k": 1.0, "d": 0.0, "rest": 0.0 },
+    { "from": 0, "to": 3, "k": 1.0, "d": 0.0, "rest": 0.0 },
+    { "from": 0, "to": 4, "k": 1.0, "d": 0.0, "rest": 0.0 },
+    { "from": 1, "to": 4, "k": 1.0, "d": 0.0, "rest": 0.0 },
+    { "from": 2, "to": 4, "k": 1.0, "d": 0.0, "rest": 0.0 },
+    { "from": 3, "to": 4, "k": 1.0, "d": 0.0, "rest": 0.0 }
+  ]
+}
