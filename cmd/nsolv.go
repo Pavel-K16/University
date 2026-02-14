@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"masters/internal/aero"
-	"masters/internal/config"
 	equationsolver "masters/internal/equationSolver"
+	g "masters/internal/graph"
 	iofile "masters/internal/ioFile"
 	"masters/internal/numMethods/utils"
 
@@ -34,9 +34,9 @@ func solveWithGraph(t0, T, dt float64) {
 	fmt.Printf("Начальные условия: t=0\n")
 	fmt.Printf("Диапазон расчёта: t=[%.2f, %.2f], dt=%.4f\n", t0, T, dt)
 
-	graph := config.NewGraph()
+	graph := g.NewGraph()
 
-	metronome0 := config.NewMovableNode(0,
+	metronome0 := g.NewMovableNode(0,
 		1.0,
 		1.0,
 		0.0,
@@ -45,7 +45,7 @@ func solveWithGraph(t0, T, dt float64) {
 	)
 	graph.AddNode(metronome0)
 
-	metronome1 := config.NewMovableNode(1,
+	metronome1 := g.NewMovableNode(1,
 		1.0,
 		2.0,
 		0.0,
@@ -54,7 +54,7 @@ func solveWithGraph(t0, T, dt float64) {
 	)
 	graph.AddNode(metronome1)
 
-	metronome2 := config.NewMovableNode(2,
+	metronome2 := g.NewMovableNode(2,
 		1.0,
 		3.0,
 		0.0,
@@ -63,7 +63,7 @@ func solveWithGraph(t0, T, dt float64) {
 	)
 	graph.AddNode(metronome2)
 
-	metronome3 := config.NewMovableNode(3,
+	metronome3 := g.NewMovableNode(3,
 		1.0,
 		4.0,
 		0.0,
@@ -72,7 +72,7 @@ func solveWithGraph(t0, T, dt float64) {
 	)
 	graph.AddNode(metronome3)
 
-	fixedPlatform := config.NewFixedNode(4, 0.0)
+	fixedPlatform := g.NewFixedNode(4, 0.0)
 	graph.AddNode(fixedPlatform)
 
 	graph.AddEdge(0, 1,
@@ -140,7 +140,7 @@ func solveWithGraph(t0, T, dt float64) {
 	//findExtrema(graph)
 }
 
-func findExtrema(graph *config.Graph) {
+func findExtrema(graph *g.Graph) {
 	for _, node := range graph.Nodes {
 		if err := utils.FindExtrema(node.ID); err != nil {
 			log.Errorf("Error finding extrema 4 node: %d, err: %s", node.ID, err)

@@ -1,7 +1,7 @@
 package equationsolver
 
 import (
-	"masters/internal/config"
+	graph "masters/internal/graph"
 	"masters/internal/logger"
 	"math"
 )
@@ -12,12 +12,12 @@ var (
 
 // GraphSolver решает систему уравнений для графа
 type GraphSolver struct {
-	graph *config.Graph
+	graph *graph.Graph
 	dt    float64
 }
 
 // NewGraphSolver создаёт новый решатель для графа
-func NewGraphSolver(graph *config.Graph, dt float64) *GraphSolver {
+func NewGraphSolver(graph *graph.Graph, dt float64) *GraphSolver {
 	return &GraphSolver{
 		graph: graph,
 		dt:    dt,
@@ -25,7 +25,7 @@ func NewGraphSolver(graph *config.Graph, dt float64) *GraphSolver {
 }
 
 // computeAccelerations вычисляет ускорения всех узлов при заданных положениях и скоростях
-func computeAccelerations(graph *config.Graph, positions, velocities map[int]float64) map[int]float64 {
+func computeAccelerations(graph *graph.Graph, positions, velocities map[int]float64) map[int]float64 {
 	// Временно устанавливаем состояния
 	savedPositions := make(map[int]float64)
 	savedVelocities := make(map[int]float64)

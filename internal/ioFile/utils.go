@@ -2,8 +2,8 @@ package iofile
 
 import (
 	"fmt"
-	config "masters/internal/config"
 	equationsolver "masters/internal/equationSolver"
+	graph "masters/internal/graph"
 	"masters/internal/logger"
 	"os"
 )
@@ -18,7 +18,7 @@ var (
 var KineticEnergy []float64
 var PotentialEnergy []float64
 
-func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *config.Graph, t0, T, dt float64) {
+func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Graph, t0, T, dt float64) {
 	nodesNum := graph.NodesNumbers()
 
 	graphPointsFiles := make([]*os.File, 0, len(nodesNum))

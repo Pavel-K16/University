@@ -3,7 +3,7 @@ package utils
 import (
 	"fmt"
 	"io"
-	"masters/internal/config"
+	graph "masters/internal/graph"
 	iofile "masters/internal/ioFile"
 	"math"
 	"os"
@@ -50,7 +50,7 @@ func FindExtrema(nodeID int) error {
 		return nil
 	}
 
-	extremaList := make([]config.ExtremaPoint, 0)
+	extremaList := make([]graph.ExtremaPoint, 0)
 
 	// Проходим по всем точкам, начиная со второй и заканчивая предпоследней
 	for i := 1; i < len(points)-1; i++ {
@@ -75,7 +75,7 @@ func FindExtrema(nodeID int) error {
 
 		// Если это локальный максимум, добавляем его
 		if isMax {
-			extremaList = append(extremaList, config.ExtremaPoint{
+			extremaList = append(extremaList, graph.ExtremaPoint{
 				Time:      curr.Time,
 				Amplitude: math.Abs(curr.Position), // абсолютное значение амплитуды
 			})
@@ -91,7 +91,7 @@ func FindExtrema(nodeID int) error {
 	return nil
 }
 
-func writeExtremasToFile(nodeID int, extremaList []config.ExtremaPoint) error {
+func writeExtremasToFile(nodeID int, extremaList []graph.ExtremaPoint) error {
 	extremaPointsFile, err := os.OpenFile(fmt.Sprintf(extremaPoinsFileTmp, fmt.Sprintf("%d", nodeID)), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	if err != nil {
 		log.Errorf("Error: %s", err)
@@ -108,8 +108,8 @@ func writeExtremasToFile(nodeID int, extremaList []config.ExtremaPoint) error {
 	return nil
 }
 
-func GetPointsFromFile(nodeID int) ([]config.Point, error) {
-	points := make([]config.Point, 0)
+func GetPointsFromFile(nodeID int) ([]graph.Point, error) {
+	points := make([]graph.Point, 0)
 	filePath := fmt.Sprintf(iofile.GraphPointsFileTmpl, fmt.Sprintf("%d", nodeID))
 
 	file, err := os.Open(filePath)
@@ -152,7 +152,7 @@ func GetPointsFromFile(nodeID int) ([]config.Point, error) {
 			return nil, err
 		}
 
-		point := config.Point{
+		point := graph.Point{
 			Time:     t,
 			Position: x,
 		}
