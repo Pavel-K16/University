@@ -23,6 +23,10 @@ type TimesConfig struct {
 type AeroConfig struct {
 	Enabled bool    `json:"enabled"`
 	Scale   float64 `json:"scale"`
+	V       float64 `json:"v"`
+	Pho     float64 `json:"rho"`
+	B       float64 `json:"b"`
+	M       float64 `json:"m"`
 }
 
 type NodeConfig struct {
@@ -98,14 +102,14 @@ func CreateGraph(graph *g.Graph) error {
 			continue
 		}
 
-		metronome0 := g.NewMovableNode(node.ID,
+		graphNode := g.NewMovableNode(node.ID,
 			node.Mass,
 			node.Position,
 			node.Velocity,
 			0.0,
 			0.0,
 		)
-		graph.AddNode(metronome0)
+		graph.AddNode(graphNode)
 	}
 
 	for _, edge := range cnf.Edges {

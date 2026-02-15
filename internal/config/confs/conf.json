@@ -6,8 +6,12 @@
    },
    "aeroDynamicForce":
     {
-    "enabled": false,
-    "scale": 0.1
+    "enabled": true,
+    "scale": 0.1,
+    "v": 1.0,
+    "rho": 1.0,
+    "b": 1.0,
+    "m": 1.0
     } 
   ,
   "nodes": [

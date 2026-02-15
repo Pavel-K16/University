@@ -39,11 +39,14 @@ func solveWithGraph(t0, T, dt float64) {
 	graph.PrintGraph()
 
 	aero.InitInfluenceKoefMatrix(graph.NodesNumbers())
+
+	cnf := config.GetConfig()
+
 	aero.SetFlowParameters(
-		1.0, // скорость
-		1.0, // плотность
-		1.0, // длина хорды
-		1.0, // обобщённая масаа
+		cnf.Aero.V,   // скорость
+		cnf.Aero.Pho, // плотность
+		cnf.Aero.B,   // длина хорды
+		cnf.Aero.M,   // обобщённая масаа
 	)
 
 	solver := equationsolver.NewGraphSolver(graph, dt)
