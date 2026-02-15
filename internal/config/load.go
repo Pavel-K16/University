@@ -21,7 +21,8 @@ type TimesConfig struct {
 }
 
 type AeroConfig struct {
-	Enabled bool `json:"enabled"`
+	Enabled bool    `json:"enabled"`
+	Scale   float64 `json:"scale"`
 }
 
 type NodeConfig struct {

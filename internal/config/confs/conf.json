@@ -6,7 +6,8 @@
    },
    "aeroDynamicForce":
     {
-    "enabled": false
+    "enabled": false,
+    "scale": 0.1
     } 
   ,
   "nodes": [

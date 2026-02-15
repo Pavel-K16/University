@@ -18,6 +18,8 @@ var (
 func main() {
 	cnf := config.GetConfig()
 	aero.AeroEnabled = cnf.Aero.Enabled
+	aero.Scale = cnf.Aero.Scale
+
 	T := cnf.Times.T
 	t0 := cnf.Times.T0
 	dt := cnf.Times.Dt

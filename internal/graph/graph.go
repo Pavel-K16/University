@@ -187,9 +187,7 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 	koeff := 0.5 * v * v * b * rho
 	aeroDinamicForce *= koeff
 
-	// Масштаб аэро: при 1.0 вклад как в формуле; при 0.1–0.01 — слабая связь, меньше раскачка.
-	const aeroScale = 1.1
-	return aeroDinamicForce * aeroScale
+	return aeroDinamicForce * aero.Scale
 }
 
 // GetNode возвращает узел по ID

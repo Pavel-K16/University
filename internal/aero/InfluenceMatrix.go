@@ -4,7 +4,10 @@ import (
 	"masters/internal/logger"
 )
 
-var AeroEnabled bool
+var (
+	AeroEnabled bool
+	Scale       float64
+)
 
 type influenceKoefMatrix struct {
 	matrix [][]float64
