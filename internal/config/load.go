@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
 	g "masters/internal/graph"
 	"masters/internal/logger"
 	"os"
@@ -10,6 +9,7 @@ import (
 
 type GraphConfig struct {
 	Times TimesConfig  `json:"times"`
+	Aero  AeroConfig   `json:"aeroDynamicForce"`
 	Nodes []NodeConfig `json:"nodes"`
 	Edges []EdgeConfig `json:"edges"`
 }
@@ -18,6 +18,10 @@ type TimesConfig struct {
 	T0 float64 `json:"t0"`
 	T  float64 `json:"t"`
 	Dt float64 `json:"dt"`
+}
+
+type AeroConfig struct {
+	Enabled bool `json:"enabled"`
 }
 
 type NodeConfig struct {
@@ -41,6 +45,8 @@ const (
 	defaultConf = "conf"
 )
 
+var gConfig *GraphConfig
+
 func ConfigPath() string {
 	name := os.Getenv("CONFIG")
 	if name == "" {
@@ -53,35 +59,33 @@ var (
 	log = logger.LoggerInit()
 )
 
-func loadGraphConfig() (*GraphConfig, error) {
+func LoadGraphConfig() error {
 	path := ConfigPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var cfg GraphConfig
 
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, err
-	}
-
-	return &cfg, nil
-}
-
-func CreateGraph(graph *g.Graph) error {
-	cnf, err := loadGraphConfig()
-	if err != nil {
-		log.Errorf("Error: %s", err)
-
 		return err
 	}
 
-	if cnf == nil {
-		log.Errorf("Got empty config")
+	gConfig = &cfg
 
-		return errors.New("Got empty config")
+	return nil
+}
+
+func CreateGraph(graph *g.Graph) error {
+	if gConfig == nil {
+		log.Warningf("Got empty config")
+		if err := LoadGraphConfig(); err != nil {
+			log.Errorf("Error Load Config: %s", err)
+		}
 	}
+
+	cnf := gConfig
 
 	num := len(cnf.Nodes) - 1
 
@@ -114,27 +118,10 @@ func CreateGraph(graph *g.Graph) error {
 	return nil
 }
 
-func SetTimes() ([]float64, error) { // T,t0,dt
-	cnf, err := loadGraphConfig()
-	if err != nil {
-		log.Errorf("Error: %s", err)
-
-		return nil, err
+func GetConfig() *GraphConfig {
+	if gConfig == nil {
+		LoadGraphConfig()
 	}
 
-	if cnf == nil {
-		log.Errorf("Got empty config")
-
-		return nil, errors.New("Got empty config")
-	}
-
-	times := make([]float64, 0)
-
-	T := cnf.Times.T
-	t0 := cnf.Times.T0
-	dt := cnf.Times.Dt
-
-	times = append(times, T, t0, dt)
-
-	return times, nil
+	return gConfig
 }

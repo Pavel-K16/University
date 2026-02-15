@@ -3,7 +3,6 @@ package equationsolver
 import (
 	graph "masters/internal/graph"
 	"masters/internal/logger"
-	"math"
 )
 
 var (
@@ -129,11 +128,11 @@ func (s *GraphSolver) Step(t float64) {
 		newPos := currPos[id] + s.dt/6*(currVel[id]+2*vel2[id]+2*vel3[id]+vel4[id])
 		newVel := currVel[id] + s.dt/6*(acc1[id]+2*acc2[id]+2*acc3[id]+acc4[id])
 
-		if math.Abs(newPos) > 10 {
-			log.Debugf("Time: %f", t)
-			log.Debugf("Id: %d", id)
-			log.Debugf("Error pos: %f", newPos)
-		}
+		// if math.Abs(newPos) > 10 {
+		// 	log.Debugf("Time: %f", t)
+		// 	log.Debugf("Id: %d", id)
+		// 	log.Debugf("Error pos: %f", newPos)
+		// }
 
 		// if math.Abs(newVel) > 10 {
 		// 	log.Debugf("Time: %f", t)

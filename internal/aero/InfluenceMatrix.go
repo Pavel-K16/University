@@ -2,8 +2,9 @@ package aero
 
 import (
 	"masters/internal/logger"
-	"math"
 )
+
+var AeroEnabled bool
 
 type influenceKoefMatrix struct {
 	matrix [][]float64
@@ -64,10 +65,6 @@ func GetInfluenceKoefs(num int) []nodeAeroCoef {
 	} else {
 		id1 = num + 1 // next
 		id2 = num - 1 // prev
-	}
-
-	if math.Abs(float64(id1)-float64(id2)) != 2 {
-		log.Errorf("Incorrect neighboor nodes id. Curr %d, Next: %d, Prev: %d", num, id1, id2)
 	}
 
 	nodesAeroCoef = append(nodesAeroCoef, nodeAeroCoef{

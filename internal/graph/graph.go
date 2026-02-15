@@ -126,7 +126,12 @@ func (g *Graph) NetForce(nodeID int) float64 {
 		force += springForce + damperForce
 	}
 
-	aeroForce := 0.0 //GetAeroForce(g, nodeID)
+	//log.Debugf("AeroForce: %f; Force: %f", GetAeroForce(g, nodeID), force)
+	aeroForce := 0.0
+
+	if aero.AeroEnabled {
+		aeroForce = GetAeroForce(g, nodeID)
+	}
 
 	return force + aeroForce
 }
@@ -180,9 +185,11 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 	//m := aero.GetBladeMass()
 
 	koeff := 0.5 * v * v * b * rho
-	aeroDinamicForce *= koeff * 1
+	aeroDinamicForce *= koeff
 
-	return aeroDinamicForce
+	// Масштаб аэро: при 1.0 вклад как в формуле; при 0.1–0.01 — слабая связь, меньше раскачка.
+	const aeroScale = 1.1
+	return aeroDinamicForce * aeroScale
 }
 
 // GetNode возвращает узел по ID

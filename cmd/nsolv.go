@@ -16,16 +16,11 @@ var (
 )
 
 func main() {
-	times, err := config.SetTimes()
-	if err != nil {
-		log.Errorf("Error: %s", err)
-
-		return
-	}
-
-	T := times[0]
-	t0 := times[1]
-	dt := times[2]
+	cnf := config.GetConfig()
+	aero.AeroEnabled = cnf.Aero.Enabled
+	T := cnf.Times.T
+	t0 := cnf.Times.T0
+	dt := cnf.Times.Dt
 
 	solveWithGraph(t0, T, dt)
 }
@@ -39,6 +34,8 @@ func solveWithGraph(t0, T, dt float64) {
 
 	config.CreateGraph(graph)
 
+	graph.PrintGraph()
+
 	aero.InitInfluenceKoefMatrix(graph.NodesNumbers())
 	aero.SetFlowParameters(
 		1.0, // скорость
@@ -50,8 +47,6 @@ func solveWithGraph(t0, T, dt float64) {
 	solver := equationsolver.NewGraphSolver(graph, dt)
 
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt)
-
-	graph.PrintGraph()
 
 	//findExtrema(graph)
 }
