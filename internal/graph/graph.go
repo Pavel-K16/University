@@ -60,17 +60,13 @@ func (g *Graph) AddNode(node *Node) {
 }
 
 func (g *Graph) NodesNumbers() []int {
-	numbers := make([]int, len(g.Nodes)-1)
-	i := 0
-
+	numbers := make([]int, 0)
 	for _, node := range g.Nodes {
 		if node.IsFixed {
 			continue
 		}
-		numbers[i] = node.ID
-		i++
+		numbers = append(numbers, node.ID)
 	}
-
 	return numbers
 }
 

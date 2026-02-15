@@ -21,9 +21,7 @@ var (
 )
 
 func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Graph, t0, T, dt float64) {
-	nodesNum := graph.NodesNumbers()
-
-	graphPointsFiles := make([]*os.File, 0, len(nodesNum))
+	graphPointsFiles := make([]*os.File, 0)
 
 	for _, node := range graph.Nodes {
 		graphPointsFile, _ := os.OpenFile(fmt.Sprintf(GraphPointsFileTmpl, fmt.Sprintf("%d", node.ID)), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)

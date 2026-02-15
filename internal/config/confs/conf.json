@@ -1,17 +1,16 @@
 {
    "times":{
-    "t0":1030.0,
-    "t": 1050.0,
+    "t0":10000.0,
+    "t": 10030.0,
     "dt":0.1
    },
    "aeroDynamicForce":
     {
     "enabled": true,
-    "scale": 0.1,
+    "scale": 0.001,
     "v": 1.0,
     "rho": 1.0,
-    "b": 1.0,
-    "m": 1.0
+    "b": 1.0
     } 
   ,
   "nodes": [
@@ -45,8 +44,10 @@
     },
     {
       "id": 4,
-      "fixed": true,
-      "position": 0.0
+      "fixed": false,
+      "mass":1.0,
+      "position": 0.0,
+      "velocity": 0.0
     }
   ],
   "edges": [
