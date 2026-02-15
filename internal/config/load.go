@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	g "masters/internal/graph"
 	"masters/internal/logger"
 	"os"
@@ -9,7 +10,7 @@ import (
 
 type GraphConfig struct {
 	Times TimesConfig  `json:"times"`
-	Aero  AeroConfig   `json:"aeroDynamicForce"`
+	Aero  AeroConfig   `json:"aeroDynamicForce,omitempty"`
 	Nodes []NodeConfig `json:"nodes"`
 	Edges []EdgeConfig `json:"edges"`
 }
@@ -35,6 +36,8 @@ type NodeConfig struct {
 	Mass     float64 `json:"mass,omitempty"`
 	Position float64 `json:"position"`
 	Velocity float64 `json:"velocity,omitempty"`
+	K        float64
+	D        float64
 }
 
 type EdgeConfig struct {
@@ -46,8 +49,11 @@ type EdgeConfig struct {
 }
 
 const (
-	confDir     = "../internal/config/confs" // относительно cwd при запуске из scripts/
-	defaultConf = "conf"
+	confDir               = "../internal/config/confs" // относительно cwd при запуске из scripts/
+	defaultConf           = "conf"
+	paramsFilePathTmpl    = "../wolfram/paramsAndPoints/params%s.txt"
+	timeFilePath          = "../wolfram/paramsAndPoints/time.txt"
+	coupledParamsFilePath = "../wolfram/paramsAndPoints/coupledParams.txt"
 )
 
 var gConfig *GraphConfig
@@ -78,6 +84,11 @@ func LoadGraphConfig() error {
 	}
 
 	gConfig = &cfg
+
+	name := os.Getenv("CONFIG")
+	if name == "2Bodies" {
+		Write2BodiesParamsToTxt(&cfg)
+	}
 
 	return nil
 }
@@ -129,4 +140,64 @@ func GetConfig() *GraphConfig {
 	}
 
 	return gConfig
+}
+
+type nodeOwnParams struct {
+	k float64
+	d float64
+}
+
+func Write2BodiesParamsToTxt(cnf *GraphConfig) {
+	nodes := cnf.Nodes
+	edges := cnf.Edges
+
+	var fixedNodeID int
+
+	var coupledK, coupledD float64
+
+	nodesOwnParams := make(map[int]nodeOwnParams)
+
+	for _, node := range nodes {
+		if node.Fixed {
+			fixedNodeID = node.ID
+			break
+		}
+	}
+
+	for _, edge := range edges {
+		if edge.To == fixedNodeID {
+
+			nodesOwnParams[edge.From] = nodeOwnParams{
+				k: edge.K,
+				d: edge.D,
+			}
+		}
+
+		if edge.From != fixedNodeID && edge.To != fixedNodeID {
+			coupledK = edge.K
+			coupledD = edge.D
+		}
+	}
+
+	coupledParamsFile, _ := os.OpenFile(coupledParamsFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	fmt.Fprintf(coupledParamsFile, "%.10f %.10f\n", coupledK, coupledD)
+	coupledParamsFile.Close()
+
+	timeParamsFile, _ := os.OpenFile(timeFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	fmt.Fprintf(timeParamsFile, "%.10f %.10f %.10f\n", cnf.Times.T, cnf.Times.T0, cnf.Times.Dt)
+	timeParamsFile.Close()
+
+	for _, node := range nodes {
+		if node.Fixed {
+			continue
+		}
+
+		params := nodesOwnParams[node.ID]
+		k := params.k
+		d := params.d
+
+		paramsFile, _ := os.OpenFile(fmt.Sprintf(paramsFilePathTmpl, fmt.Sprintf("%d", node.ID)), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		fmt.Fprintf(paramsFile, "%.10f %.10f %.10f %.10f %.10f\n", node.Position, node.Mass, node.Velocity, k, d)
+		paramsFile.Close()
+	}
 }

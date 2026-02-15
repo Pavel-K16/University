@@ -18,7 +18,6 @@ var (
 func main() {
 	cnf := config.GetConfig()
 	aero.AeroEnabled = cnf.Aero.Enabled
-	aero.Scale = cnf.Aero.Scale
 
 	T := cnf.Times.T
 	t0 := cnf.Times.T0
@@ -38,22 +37,28 @@ func solveWithGraph(t0, T, dt float64) {
 
 	graph.PrintGraph()
 
-	aero.InitInfluenceKoefMatrix(graph.NodesNumbers())
-
-	cnf := config.GetConfig()
-
-	aero.SetFlowParameters(
-		cnf.Aero.V,   // скорость
-		cnf.Aero.Pho, // плотность
-		cnf.Aero.B,   // длина хорды
-		cnf.Aero.M,   // обобщённая масаа
-	)
+	setAeroParams(graph)
 
 	solver := equationsolver.NewGraphSolver(graph, dt)
 
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt)
 
 	//findExtrema(graph)
+}
+
+func setAeroParams(graph *g.Graph) {
+	if aero.AeroEnabled {
+		cnf := config.GetConfig()
+		aero.InitInfluenceKoefMatrix(graph.NodesNumbers())
+		aero.Scale = cnf.Aero.Scale
+
+		aero.SetFlowParameters(
+			cnf.Aero.V,   // скорость
+			cnf.Aero.Pho, // плотность
+			cnf.Aero.B,   // длина хорды
+			cnf.Aero.M,   // обобщённая масаа
+		)
+	}
 }
 
 func findExtrema(graph *g.Graph) {
