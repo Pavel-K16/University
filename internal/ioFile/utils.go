@@ -12,6 +12,7 @@ var (
 	GraphPointsFileTmpl     = "../wolfram/paramsAndPoints/graph_points%s.txt"
 	kineticEnergyFilePath   = "../wolfram/paramsAndPoints/kineticEnergyPoints.txt"
 	potentialEnergyFilePath = "../wolfram/paramsAndPoints/potentialEnergyPoints.txt"
+	sumEnergyFilePath       = "../wolfram/paramsAndPoints/sumEnergyPoints.txt"
 )
 
 var KineticEnergy, PotentialEnergy []float64
@@ -31,7 +32,9 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Gr
 	defer closeGraphPointsFiles(graphPointsFiles)
 	kineticEnergyFile, _ := os.OpenFile(kineticEnergyFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	potentialEnergyFile, _ := os.OpenFile(potentialEnergyFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	sumEnergyFile, _ := os.OpenFile(sumEnergyFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 
+	defer sumEnergyFile.Close()
 	defer kineticEnergyFile.Close()
 	defer potentialEnergyFile.Close()
 
@@ -61,6 +64,7 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Gr
 		fmt.Fprintf(kineticEnergyFile, "%.10f %.10f\n", t, kineticEnergy)
 		potentialEnergy := graph.TotalPotentialEnergy()
 		fmt.Fprintf(potentialEnergyFile, "%.10f %.10f\n", t, potentialEnergy)
+		fmt.Fprintf(sumEnergyFile, "%.10f %.10f\n", t, kineticEnergy+potentialEnergy)
 	}
 }
 
