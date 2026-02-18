@@ -35,7 +35,7 @@ func solveWithGraph(t0, T, dt float64) {
 
 	config.CreateGraph(graph)
 
-	//graph.PrintGraph()
+	graph.PrintGraph()
 
 	setAeroParams(graph)
 

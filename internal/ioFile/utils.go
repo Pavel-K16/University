@@ -49,6 +49,12 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Gr
 	fmt.Printf("Запускаем расчёт от t=%.2f до t=%.2f\n", t0, T)
 
 	for t := t0; t <= T; t += dt {
+		// if t == t0 {
+		// 	for idx := range graphPointsFiles {
+		// 		log.Debugf("Initial: Force 4 node %d %f", idx, graph.NetForce(idx))
+		// 	}
+		// }
+
 		solver.Step(t)
 		for idx, file := range graphPointsFiles {
 			node := graph.GetNode(idx)
@@ -56,6 +62,10 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Gr
 				log.Errorf("node is nil for index: %d", idx)
 				continue
 			}
+
+			// if t == t0 {
+			// 	log.Debugf("Force 4 node %d %f", idx, graph.NetForce(idx))
+			// }
 
 			fmt.Fprintf(file, "%.10f %.10f\n", t, node.Position)
 		}

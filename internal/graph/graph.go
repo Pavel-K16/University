@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"masters/internal/aero"
 	"masters/internal/logger"
-	"slices"
 )
 
 var (
@@ -79,18 +78,19 @@ func (g *Graph) AddEdge(fromID, toID int, k, d, rest float64) {
 	to := g.Nodes[toID]
 
 	// Добавляем связь в оба узла
+	// rest задаётся для направления from→to, поэтому для обратного направления (to→from) инвертируем знак
 	from.Edges = append(from.Edges, Edge{
 		TargetID: toID,
 		K:        k,
 		D:        d,
-		Rest:     rest,
+		Rest:     rest, // rest для направления from→to
 	})
 
 	to.Edges = append(to.Edges, Edge{
 		TargetID: fromID,
 		K:        k,
 		D:        d,
-		Rest:     rest,
+		Rest:     -rest, // инвертируем знак для направления to→from
 	})
 }
 
@@ -111,8 +111,12 @@ func (g *Graph) NetForce(nodeID int) float64 {
 			continue
 		}
 
-		dx := node.Position - targetNode.Position - edge.Rest // деформация пружины
-		dv := node.Velocity - targetNode.Velocity             // относительная скорость
+		// rest задаётся для направления "от node к target", поэтому для вычисления dx
+		// используем rest как есть (со знаком, заданным в конфиге)
+		dx := targetNode.Position - node.Position - edge.Rest // деформация пружины
+		//log.Debugf("All dx 4 Node: %d %f", nodeID, dx)
+
+		dv := node.Velocity - targetNode.Velocity // относительная скорость
 
 		springForce := -edge.K * dx
 
@@ -127,6 +131,7 @@ func (g *Graph) NetForce(nodeID int) float64 {
 
 	if aero.AeroEnabled {
 		aeroForce = GetAeroForce(g, nodeID)
+		log.Debugf("Aero Force 4 node: %d %f", nodeID, aeroForce)
 	}
 
 	return force + aeroForce
@@ -140,7 +145,7 @@ func (g *Graph) TotalPotentialEnergy() float64 {
 			if target == nil {
 				continue
 			}
-			dx := node.Position - target.Position - edge.Rest
+			dx := target.Position - node.Position - edge.Rest
 			sum += 0.25 * edge.K * dx * dx
 		}
 	}
@@ -160,25 +165,55 @@ func (g *Graph) TotalKineticEnergy() float64 {
 
 func GetAeroForce(g *Graph, nodeID int) float64 {
 	aeroDinamicForce := 0.0
+	node := g.Nodes[nodeID]
+	if node == nil {
+		return 0
+	}
+
+	// Определяем первый и последний узлы в кольце (для учёта замыкания)
 	nodesIDs := g.NodesNumbers()
+	if len(nodesIDs) == 0 {
+		return 0
+	}
+	firstNodeID := nodesIDs[0]
+	lastNodeID := nodesIDs[len(nodesIDs)-1]
 
-	nodesKoef := aero.GetInfluenceKoefs(nodeID)
-
-	for _, nodeKoef := range nodesKoef {
-		if !slices.Contains(nodesIDs, nodeKoef.ID) {
-			log.Errorf("node %d does't exist in the graph.", nodeKoef.ID)
-			log.Errorf("Nodes in graph %+v", nodesIDs)
-
-			return 0
+	// Вычисляем аэросилу через рёбра графа: для каждого ребра коэффициент зависит от направления
+	for _, edge := range node.Edges {
+		targetNode := g.Nodes[edge.TargetID]
+		if targetNode == nil || targetNode.IsFixed {
+			continue
 		}
 
-		aeroDinamicForce += nodeKoef.Koef * g.Nodes[nodeKoef.ID].Position
+		// Проверяем, является ли это ребро замыканием кольца (первый ↔ последний)
+		isClosingEdge := (nodeID == firstNodeID && edge.TargetID == lastNodeID) ||
+			(nodeID == lastNodeID && edge.TargetID == firstNodeID)
+
+		// Коэффициент: если nodeID > targetID, то -1, иначе +1
+		// Но для замыкания кольца (первый ↔ последний) инвертируем правило
+		var aeroKoef float64
+		if isClosingEdge {
+			// Для замыкания: узел 0 → узел 4: -1, узел 4 → узел 0: +1
+			if nodeID == firstNodeID {
+				aeroKoef = -1.0 // 0 → 4: -1
+			} else {
+				aeroKoef = +1.0 // 4 → 0: +1
+			}
+		} else {
+			// Обычное правило: если nodeID > targetID, то -1, иначе +1
+			if nodeID > edge.TargetID {
+				aeroKoef = -1.0
+			} else {
+				aeroKoef = 1.0
+			}
+		}
+
+		aeroDinamicForce += aeroKoef * targetNode.Position
 	}
 
 	v := aero.GetFlowVelocity()
 	rho := aero.GetFlowDensity()
 	b := aero.GetBladeChord()
-	//m := aero.GetBladeMass()
 
 	koeff := 0.5 * v * v * b * rho
 	aeroDinamicForce *= koeff

@@ -42,7 +42,7 @@ func InitInfluenceKoefMatrix(numS []int) {
 		}
 	}
 }
-
+	
 func GetInfluenceKoefs(num int) []nodeAeroCoef {
 	if num >= len(matrix.matrix) {
 		log.Errorf("num1 or num2 is out of range: %d", num)
