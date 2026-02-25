@@ -41,11 +41,12 @@ type NodeConfig struct {
 }
 
 type EdgeConfig struct {
-	From int     `json:"from"`
-	To   int     `json:"to"`
-	K    float64 `json:"k,omitempty"`
-	D    float64 `json:"d,omitempty"`
-	Rest float64 `json:"rest,omitempty"`
+	From     int     `json:"from"`
+	To       int     `json:"to"`
+	K        float64 `json:"k,omitempty"`
+	D        float64 `json:"d,omitempty"`
+	Rest     float64 `json:"rest,omitempty"`
+	Periodic bool    `json:"periodic,omitempty"`
 }
 
 const (
@@ -128,7 +129,7 @@ func CreateGraph(graph *g.Graph) error {
 			continue
 		}
 
-		graph.AddEdge(edge.From, edge.To, edge.K, edge.D, edge.Rest)
+		graph.AddEdge(edge.From, edge.To, edge.K, edge.D, edge.Rest, edge.Periodic)
 	}
 
 	return nil

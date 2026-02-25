@@ -27,6 +27,7 @@ type Edge struct {
 	K        float64 // коэффициент жёсткости (k_ij)
 	D        float64 // коэффициент демпфирования (d_ij)
 	Rest     float64 // длина покоя (обычноW 0)
+	Periodic bool
 }
 
 type Node struct {
@@ -69,7 +70,7 @@ func (g *Graph) NodesNumbers() []int {
 	return numbers
 }
 
-func (g *Graph) AddEdge(fromID, toID int, k, d, rest float64) {
+func (g *Graph) AddEdge(fromID, toID int, k, d, rest float64, periodic bool) {
 	if fromID >= len(g.Nodes) || toID >= len(g.Nodes) {
 		return
 	}
@@ -84,6 +85,7 @@ func (g *Graph) AddEdge(fromID, toID int, k, d, rest float64) {
 		K:        k,
 		D:        d,
 		Rest:     rest, // rest для направления from→to
+		Periodic: periodic,
 	})
 
 	to.Edges = append(to.Edges, Edge{
@@ -91,6 +93,7 @@ func (g *Graph) AddEdge(fromID, toID int, k, d, rest float64) {
 		K:        k,
 		D:        d,
 		Rest:     -rest, // инвертируем знак для направления to→from
+		Periodic: periodic,
 	})
 }
 
@@ -131,8 +134,10 @@ func (g *Graph) NetForce(nodeID int) float64 {
 
 	if aero.AeroEnabled {
 		aeroForce = GetAeroForce(g, nodeID)
-		log.Debugf("Aero Force 4 node: %d %f", nodeID, aeroForce)
+		//log.Debugf("Aero Force 4 node: %d %f", nodeID, aeroForce)
 	}
+
+	//log.Debugf("Usual Force 4 Node %d: %f", nodeID, force)
 
 	return force + aeroForce
 }
@@ -197,7 +202,7 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 			if nodeID == firstNodeID {
 				aeroKoef = -1.0 // 0 → 4: -1
 			} else {
-				aeroKoef = +1.0 // 4 → 0: +1
+				aeroKoef = 1.0 // 4 → 0: +1
 			}
 		} else {
 			// Обычное правило: если nodeID > targetID, то -1, иначе +1
@@ -208,7 +213,24 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 			}
 		}
 
-		aeroDinamicForce += aeroKoef * targetNode.Position
+		if edge.Periodic {
+			// Период = число лопаток; координаты 0,1,2,...,n-1.
+			// 0 смотрит на 4: 4 «позади» → effective = pos_4 - period.
+			// 4 смотрит на 0: 0 «впереди» → effective = pos_0 + period.
+			period := float64(len(nodesIDs))
+			var pos float64
+			switch nodeID {
+			case firstNodeID:
+				pos = targetNode.Position - period
+			case lastNodeID:
+				pos = targetNode.Position + period
+			default:
+				pos = targetNode.Position
+			}
+			aeroDinamicForce += aeroKoef * pos
+		} else {
+			aeroDinamicForce += aeroKoef * targetNode.Position
+		}
 	}
 
 	v := aero.GetFlowVelocity()
@@ -217,7 +239,7 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 
 	koeff := 0.5 * v * v * b * rho
 	aeroDinamicForce *= koeff
-
+	log.Debugf("aeroDinamicForce 4 Node %d: %f", nodeID, aeroDinamicForce)
 	return aeroDinamicForce * aero.Scale
 }
 

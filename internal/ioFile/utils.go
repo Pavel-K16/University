@@ -63,6 +63,10 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Gr
 				continue
 			}
 
+			// if node.ID == 5 {
+			// 	log.Debugf("NodeID 5 pos: %f", node.Position)
+			// }
+
 			// if t == t0 {
 			// 	log.Debugf("Force 4 node %d %f", idx, graph.NetForce(idx))
 			// }
