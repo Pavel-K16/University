@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"masters/internal/aero"
 	"masters/internal/logger"
+
+	"masters/internal/config"
 )
 
 var (
@@ -22,40 +24,17 @@ type ExtremaPoint struct {
 	Amplitude float64 // абсолютное значение амплитуды
 }
 
-type Edge struct {
-	TargetID int     // ID узла, с которым связан текущий узел
-	K        float64 // коэффициент жёсткости (k_ij)
-	D        float64 // коэффициент демпфирования (d_ij)
-	Rest     float64 // длина покоя (обычноW 0)
-	Periodic bool
-}
-
-type Node struct {
-	ID       int     // уникальный идентификатор узла
-	Mass     float64 // масса узла
-	Position float64 // текущее положение
-	Velocity float64 // текущая скорость
-
-	// Собственные силы узла относительно "земли" (опционально)
-	K float64 // собственная жёсткость (пружина относительно земли)
-	D float64 // собственное демпфирование (демпфер относительно земли)
-
-	// Связи этого узла с другими узлами
-	Edges []Edge // список всех связей данного узла
-
-	// Флаги состояния
-	IsFixed bool // если true, узел жёстко закреплён (не двигается)
-}
-
 type Graph struct {
-	Nodes []*Node
+	NodesNum      int
+	LastFirstDist float64
+	Nodes         []*config.Node
 }
 
 func NewGraph() *Graph {
-	return &Graph{Nodes: make([]*Node, 0)}
+	return &Graph{Nodes: make([]*config.Node, 0)}
 }
 
-func (g *Graph) AddNode(node *Node) {
+func (g *Graph) AddNode(node *config.Node) {
 	g.Nodes = append(g.Nodes, node)
 }
 
@@ -70,31 +49,57 @@ func (g *Graph) NodesNumbers() []int {
 	return numbers
 }
 
-func (g *Graph) AddEdge(fromID, toID int, k, d, rest float64, periodic bool) {
-	if fromID >= len(g.Nodes) || toID >= len(g.Nodes) {
+func CreateGraph(graph *Graph) error {
+	cnf := config.GetGConfig()
+
+	if cnf == nil {
+		log.Warningf("Got empty config")
+		if err := config.LoadGraphConfig(); err != nil {
+			log.Errorf("Error Load Config: %s", err)
+		}
+	}
+
+	graph.LastFirstDist = cnf.LastFirstDist
+
+	num := len(cnf.Nodes) - 1
+
+	for _, node := range cnf.Nodes {
+		if node.IsFixed {
+			fixedNode := NewFixedNode(node.ID, node.Position)
+			graph.AddNode(fixedNode)
+
+			continue
+		}
+
+		graph.AddNode(&node)
+	}
+
+	for _, edge := range cnf.Edges {
+		if edge.FromID > num || edge.TargetID > num {
+			continue
+		}
+
+		graph.AddEdge(edge)
+	}
+
+	return nil
+}
+
+func (g *Graph) AddEdge(edge config.Edge) {
+	if edge.FromID >= len(g.Nodes) || edge.TargetID >= len(g.Nodes) {
 		return
 	}
 
-	from := g.Nodes[fromID]
-	to := g.Nodes[toID]
+	from := g.Nodes[edge.FromID]
+	to := g.Nodes[edge.TargetID]
 
 	// Добавляем связь в оба узла
 	// rest задаётся для направления from→to, поэтому для обратного направления (to→from) инвертируем знак
-	from.Edges = append(from.Edges, Edge{
-		TargetID: toID,
-		K:        k,
-		D:        d,
-		Rest:     rest, // rest для направления from→to
-		Periodic: periodic,
-	})
+	from.Edges = append(from.Edges, edge)
 
-	to.Edges = append(to.Edges, Edge{
-		TargetID: fromID,
-		K:        k,
-		D:        d,
-		Rest:     -rest, // инвертируем знак для направления to→from
-		Periodic: periodic,
-	})
+	restFixEdge := edge
+	restFixEdge.Rest = -restFixEdge.Rest
+	to.Edges = append(to.Edges, restFixEdge)
 }
 
 // NetForce вычисляет чистую силу, действующую на узел
@@ -244,7 +249,7 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 }
 
 // GetNode возвращает узел по ID
-func (g *Graph) GetNode(id int) *Node {
+func (g *Graph) GetNode(id int) *config.Node {
 	if id < 0 || id >= len(g.Nodes) {
 		return nil
 	}
@@ -270,29 +275,29 @@ func (g *Graph) UpdateVelocity(nodeID int, newVelocity float64) {
 // Создаём удобные конструкторы
 
 // NewFixedNode создаёт жёстко закреплённый узел
-func NewFixedNode(id int, position float64) *Node {
-	return &Node{
+func NewFixedNode(id int, position float64) *config.Node {
+	return &config.Node{
 		ID:       id,
 		Mass:     0,
 		Position: position,
 		Velocity: 0,
 		K:        0,
 		D:        0,
-		Edges:    make([]Edge, 0),
+		Edges:    make([]config.Edge, 0),
 		IsFixed:  true,
 	}
 }
 
 // NewMovableNode создаёт подвижный узел
-func NewMovableNode(id int, mass, position, velocity, k, d float64) *Node {
-	return &Node{
+func NewMovableNode(id int, mass, position, velocity, k, d float64) *config.Node {
+	return &config.Node{
 		ID:       id,
 		Mass:     mass,
 		Position: position,
 		Velocity: velocity,
 		K:        k,
 		D:        d,
-		Edges:    make([]Edge, 0),
+		Edges:    make([]config.Edge, 0),
 		IsFixed:  false,
 	}
 }

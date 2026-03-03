@@ -33,7 +33,7 @@ func solveWithGraph(t0, T, dt float64) {
 
 	graph := g.NewGraph()
 
-	config.CreateGraph(graph)
+	g.CreateGraph(graph)
 
 	graph.PrintGraph()
 
@@ -42,8 +42,6 @@ func solveWithGraph(t0, T, dt float64) {
 	solver := equationsolver.NewGraphSolver(graph, dt)
 
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt)
-
-	//findExtrema(graph)
 }
 
 func setAeroParams(graph *g.Graph) {

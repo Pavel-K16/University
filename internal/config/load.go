@@ -3,25 +3,25 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	g "masters/internal/graph"
 	"masters/internal/logger"
 	"os"
 )
 
-type GraphConfig struct {
-	Times TimesConfig  `json:"times"`
-	Aero  AeroConfig   `json:"aeroDynamicForce,omitempty"`
-	Nodes []NodeConfig `json:"nodes"`
-	Edges []EdgeConfig `json:"edges"`
+type Graph struct {
+	Times         Times   `json:"times"`
+	Aero          Aero    `json:"aeroDynamicForce,omitempty"`
+	Nodes         []Node  `json:"nodes"`
+	Edges         []Edge  `json:"edges"`
+	LastFirstDist float64 `json:"LastFirstDist"`
 }
 
-type TimesConfig struct {
+type Times struct {
 	T0 float64 `json:"t0"`
 	T  float64 `json:"t"`
 	Dt float64 `json:"dt"`
 }
 
-type AeroConfig struct {
+type Aero struct {
 	Enabled bool    `json:"enabled"`
 	Scale   float64 `json:"scale"`
 	V       float64 `json:"v"`
@@ -30,19 +30,20 @@ type AeroConfig struct {
 	M       float64 `json:"m"`
 }
 
-type NodeConfig struct {
+type Node struct {
 	ID       int     `json:"id"`
-	Fixed    bool    `json:"fixed"`
+	IsFixed  bool    `json:"fixed"`
 	Mass     float64 `json:"mass,omitempty"`
 	Position float64 `json:"position"`
 	Velocity float64 `json:"velocity,omitempty"`
 	K        float64
 	D        float64
+	Edges    []Edge
 }
 
-type EdgeConfig struct {
-	From     int     `json:"from"`
-	To       int     `json:"to"`
+type Edge struct {
+	FromID   int     `json:"from"`
+	TargetID int     `json:"to"`
 	K        float64 `json:"k,omitempty"`
 	D        float64 `json:"d,omitempty"`
 	Rest     float64 `json:"rest,omitempty"`
@@ -57,7 +58,11 @@ const (
 	coupledParamsFilePath = "../wolfram/paramsAndPoints/coupledParams.txt"
 )
 
-var gConfig *GraphConfig
+var gConfig *Graph
+
+func GetGConfig() *Graph {
+	return gConfig
+}
 
 func ConfigPath() string {
 	name := os.Getenv("CONFIG")
@@ -78,7 +83,7 @@ func LoadGraphConfig() error {
 		return err
 	}
 
-	var cfg GraphConfig
+	var cfg Graph
 
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return err
@@ -94,48 +99,7 @@ func LoadGraphConfig() error {
 	return nil
 }
 
-func CreateGraph(graph *g.Graph) error {
-	if gConfig == nil {
-		log.Warningf("Got empty config")
-		if err := LoadGraphConfig(); err != nil {
-			log.Errorf("Error Load Config: %s", err)
-		}
-	}
-
-	cnf := gConfig
-
-	num := len(cnf.Nodes) - 1
-
-	for _, node := range cnf.Nodes {
-		if node.Fixed {
-			fixedNode := g.NewFixedNode(node.ID, node.Position)
-			graph.AddNode(fixedNode)
-
-			continue
-		}
-
-		graphNode := g.NewMovableNode(node.ID,
-			node.Mass,
-			node.Position,
-			node.Velocity,
-			0.0,
-			0.0,
-		)
-		graph.AddNode(graphNode)
-	}
-
-	for _, edge := range cnf.Edges {
-		if edge.From > num || edge.To > num {
-			continue
-		}
-
-		graph.AddEdge(edge.From, edge.To, edge.K, edge.D, edge.Rest, edge.Periodic)
-	}
-
-	return nil
-}
-
-func GetConfig() *GraphConfig {
+func GetConfig() *Graph {
 	if gConfig == nil {
 		LoadGraphConfig()
 	}
@@ -148,7 +112,7 @@ type nodeOwnParams struct {
 	d float64
 }
 
-func Write2BodiesParamsToTxt(cnf *GraphConfig) {
+func Write2BodiesParamsToTxt(cnf *Graph) {
 	nodes := cnf.Nodes
 	edges := cnf.Edges
 
@@ -159,22 +123,22 @@ func Write2BodiesParamsToTxt(cnf *GraphConfig) {
 	nodesOwnParams := make(map[int]nodeOwnParams)
 
 	for _, node := range nodes {
-		if node.Fixed {
+		if node.IsFixed {
 			fixedNodeID = node.ID
 			break
 		}
 	}
 
 	for _, edge := range edges {
-		if edge.To == fixedNodeID {
+		if edge.TargetID == fixedNodeID {
 
-			nodesOwnParams[edge.From] = nodeOwnParams{
+			nodesOwnParams[edge.FromID] = nodeOwnParams{
 				k: edge.K,
 				d: edge.D,
 			}
 		}
 
-		if edge.From != fixedNodeID && edge.To != fixedNodeID {
+		if edge.FromID != fixedNodeID && edge.TargetID != fixedNodeID {
 			coupledK = edge.K
 			coupledD = edge.D
 		}
@@ -189,7 +153,7 @@ func Write2BodiesParamsToTxt(cnf *GraphConfig) {
 	timeParamsFile.Close()
 
 	for _, node := range nodes {
-		if node.Fixed {
+		if node.IsFixed {
 			continue
 		}
 
