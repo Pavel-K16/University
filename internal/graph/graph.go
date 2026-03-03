@@ -136,8 +136,21 @@ func (g *Graph) AddEdge(edge config.Edge) {
 	to.Edges = append(to.Edges, toEdge)
 }
 
-func springDeformation(node, target *config.Node, edge config.Edge) float64 {
-	return target.Position - node.Position - edge.Rest
+func springDeformation(g *Graph, node, target *config.Node, edge config.Edge) float64 {
+	targetPos := target.Position
+
+	if edge.Periodic {
+		switch node.ID {
+		case g.FirstNodeID:
+			targetPos -= g.Period
+		case g.LastNodeID:
+			targetPos += g.Period
+		default:
+			targetPos = target.Position
+		}
+	}
+
+	return targetPos - node.Position - edge.Rest
 }
 
 // NetForce вычисляет чистую силу, действующую на узел
@@ -156,8 +169,7 @@ func (g *Graph) NetForce(nodeID int) float64 {
 		if targetNode == nil {
 			continue
 		}
-
-		dx := springDeformation(node, targetNode, edge) // деформация пружины
+		dx := springDeformation(g, node, targetNode, edge) // деформация пружины
 
 		dv := node.Velocity - targetNode.Velocity
 
@@ -190,7 +202,7 @@ func (g *Graph) TotalPotentialEnergy() float64 {
 			if targetNode == nil {
 				continue
 			}
-			dx := springDeformation(node, targetNode, edge)
+			dx := springDeformation(g, node, targetNode, edge)
 			sum += 0.25 * edge.K * dx * dx
 		}
 	}
@@ -228,11 +240,17 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 
 		var aeroKoef float64
 		if edge.Periodic {
-			// Для замыкания: узел 0 → узел 4: -1, узел 4 → узел 0: +1
-			if nodeID == g.FirstNodeID {
-				aeroKoef = -1.0 // 0 → 4: -1
-			} else {
-				aeroKoef = 1.0 // 4 → 0: +1
+			switch nodeID {
+			case g.FirstNodeID:
+				aeroKoef = -1.0
+			case g.LastNodeID:
+				aeroKoef = 1.0
+			default:
+				if nodeID > edge.TargetID {
+					aeroKoef = -1.0
+				} else {
+					aeroKoef = 1.0
+				}
 			}
 		} else {
 			// Обычное правило: если nodeID > targetID, то -1, иначе +1
