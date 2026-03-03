@@ -56,14 +56,19 @@ func CreateGraph(graph *Graph) error {
 		log.Warningf("Got empty config")
 		if err := config.LoadGraphConfig(); err != nil {
 			log.Errorf("Error Load Config: %s", err)
+			return err
 		}
+		cnf = config.GetGConfig()
 	}
 
 	graph.LastFirstDist = cnf.LastFirstDist
+	graph.NodesNum = len(cnf.Nodes)
 
 	num := len(cnf.Nodes) - 1
 
-	for _, node := range cnf.Nodes {
+	for i := range cnf.Nodes {
+		node := &cnf.Nodes[i]
+
 		if node.IsFixed {
 			fixedNode := NewFixedNode(node.ID, node.Position)
 			graph.AddNode(fixedNode)
@@ -71,7 +76,8 @@ func CreateGraph(graph *Graph) error {
 			continue
 		}
 
-		graph.AddNode(&node)
+		// добавляем сам объект из конфига, чтобы дальше работать с теми же узлами
+		graph.AddNode(node)
 	}
 
 	for _, edge := range cnf.Edges {
@@ -93,13 +99,16 @@ func (g *Graph) AddEdge(edge config.Edge) {
 	from := g.Nodes[edge.FromID]
 	to := g.Nodes[edge.TargetID]
 
-	// Добавляем связь в оба узла
-	// rest задаётся для направления from→to, поэтому для обратного направления (to→from) инвертируем знак
-	from.Edges = append(from.Edges, edge)
+	// Добавляем связь в оба узла.
+	// Для "прямого" направления используем edge как есть.
+	fromEdge := edge
+	from.Edges = append(from.Edges, fromEdge)
 
-	restFixEdge := edge
-	restFixEdge.Rest = -restFixEdge.Rest
-	to.Edges = append(to.Edges, restFixEdge)
+	// Для обратного направления меняем местами FromID/TargetID и инвертируем rest.
+	toEdge := edge
+	toEdge.FromID, toEdge.TargetID = edge.TargetID, edge.FromID
+	toEdge.Rest = -edge.Rest
+	to.Edges = append(to.Edges, toEdge)
 }
 
 // NetForce вычисляет чистую силу, действующую на узел
