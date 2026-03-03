@@ -25,9 +25,11 @@ type ExtremaPoint struct {
 }
 
 type Graph struct {
-	NodesNum      int
-	LastFirstDist float64
-	Nodes         []*config.Node
+	NodesNum    int
+	Period      float64
+	FirstNodeID int
+	LastNodeID  int
+	Nodes       []*config.Node
 }
 
 func NewGraph() *Graph {
@@ -61,10 +63,14 @@ func CreateGraph(graph *Graph) error {
 		cnf = config.GetGConfig()
 	}
 
-	graph.LastFirstDist = cnf.LastFirstDist
-	graph.NodesNum = len(cnf.Nodes)
+	// cnf.LastFirstDist
+	// graph.Period =
+	//nodesIDs := graph.NodesNumbers()
 
+	graph.NodesNum = len(cnf.Nodes)
 	num := len(cnf.Nodes) - 1
+
+	period := 0.0
 
 	for i := range cnf.Nodes {
 		node := &cnf.Nodes[i]
@@ -76,8 +82,27 @@ func CreateGraph(graph *Graph) error {
 			continue
 		}
 
+		if i+1 <= num {
+			step := 0.0
+			nextNode := cnf.Nodes[i+1]
+			if nextNode.IsFixed {
+				graph.LastNodeID = node.ID
+				step = cnf.LastFirstDist
+			} else {
+				step = nextNode.Position - node.Position
+			}
+			period += step
+		}
 		// добавляем сам объект из конфига, чтобы дальше работать с теми же узлами
 		graph.AddNode(node)
+	}
+
+	graph.Period = period
+
+	log.Debugf("Period: %f", graph.Period)
+
+	if num > 0 {
+		graph.FirstNodeID = graph.GetNode(0).ID
 	}
 
 	for _, edge := range cnf.Edges {
@@ -111,6 +136,10 @@ func (g *Graph) AddEdge(edge config.Edge) {
 	to.Edges = append(to.Edges, toEdge)
 }
 
+func springDeformation(node, target *config.Node, edge config.Edge) float64 {
+	return target.Position - node.Position - edge.Rest
+}
+
 // NetForce вычисляет чистую силу, действующую на узел
 func (g *Graph) NetForce(nodeID int) float64 {
 	node := g.Nodes[nodeID]
@@ -128,12 +157,9 @@ func (g *Graph) NetForce(nodeID int) float64 {
 			continue
 		}
 
-		// rest задаётся для направления "от node к target", поэтому для вычисления dx
-		// используем rest как есть (со знаком, заданным в конфиге)
-		dx := targetNode.Position - node.Position - edge.Rest // деформация пружины
-		//log.Debugf("All dx 4 Node: %d %f", nodeID, dx)
+		dx := springDeformation(node, targetNode, edge) // деформация пружины
 
-		dv := node.Velocity - targetNode.Velocity // относительная скорость
+		dv := node.Velocity - targetNode.Velocity
 
 		springForce := -edge.K * dx
 
@@ -160,11 +186,11 @@ func (g *Graph) TotalPotentialEnergy() float64 {
 	var sum float64
 	for _, node := range g.Nodes {
 		for _, edge := range node.Edges {
-			target := g.GetNode(edge.TargetID)
-			if target == nil {
+			targetNode := g.GetNode(edge.TargetID)
+			if targetNode == nil {
 				continue
 			}
-			dx := target.Position - node.Position - edge.Rest
+			dx := springDeformation(node, targetNode, edge)
 			sum += 0.25 * edge.K * dx * dx
 		}
 	}
@@ -189,31 +215,21 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 		return 0
 	}
 
-	// Определяем первый и последний узлы в кольце (для учёта замыкания)
 	nodesIDs := g.NodesNumbers()
 	if len(nodesIDs) == 0 {
 		return 0
 	}
-	firstNodeID := nodesIDs[0]
-	lastNodeID := nodesIDs[len(nodesIDs)-1]
 
-	// Вычисляем аэросилу через рёбра графа: для каждого ребра коэффициент зависит от направления
 	for _, edge := range node.Edges {
 		targetNode := g.Nodes[edge.TargetID]
 		if targetNode == nil || targetNode.IsFixed {
 			continue
 		}
 
-		// Проверяем, является ли это ребро замыканием кольца (первый ↔ последний)
-		isClosingEdge := (nodeID == firstNodeID && edge.TargetID == lastNodeID) ||
-			(nodeID == lastNodeID && edge.TargetID == firstNodeID)
-
-		// Коэффициент: если nodeID > targetID, то -1, иначе +1
-		// Но для замыкания кольца (первый ↔ последний) инвертируем правило
 		var aeroKoef float64
-		if isClosingEdge {
+		if edge.Periodic {
 			// Для замыкания: узел 0 → узел 4: -1, узел 4 → узел 0: +1
-			if nodeID == firstNodeID {
+			if nodeID == g.FirstNodeID {
 				aeroKoef = -1.0 // 0 → 4: -1
 			} else {
 				aeroKoef = 1.0 // 4 → 0: +1
@@ -228,16 +244,12 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 		}
 
 		if edge.Periodic {
-			// Период = число лопаток; координаты 0,1,2,...,n-1.
-			// 0 смотрит на 4: 4 «позади» → effective = pos_4 - period.
-			// 4 смотрит на 0: 0 «впереди» → effective = pos_0 + period.
-			period := float64(len(nodesIDs))
 			var pos float64
 			switch nodeID {
-			case firstNodeID:
-				pos = targetNode.Position - period
-			case lastNodeID:
-				pos = targetNode.Position + period
+			case g.FirstNodeID:
+				pos = targetNode.Position - g.Period
+			case g.LastNodeID:
+				pos = targetNode.Position + g.Period
 			default:
 				pos = targetNode.Position
 			}

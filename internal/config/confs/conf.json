@@ -1,7 +1,7 @@
 {
   "times":{
    "t0":0.0,
-   "t": 3.0,
+   "t": 0.5,
    "dt":0.1
   },
   "aeroDynamicForce":
@@ -55,7 +55,6 @@
      "mass": 1000000000.0,
      "position": 0.0,
      "velocity":0.0
-
    }
  ],
  "edges": [
@@ -76,5 +75,6 @@
    { "from": 2, "to": 5, "k": 0.0, "d": 0.0, "rest": 3.0 },
    { "from": 3, "to": 5, "k": 0.0, "d": 0.0, "rest": 2.0 },
    { "from": 4, "to": 5, "k": 0.0, "d": 0.0, "rest": 1.0 }
- ]
+ ],
+ "lastFirstDist": 1.0
 }

@@ -12,7 +12,7 @@ type Graph struct {
 	Aero          Aero    `json:"aeroDynamicForce,omitempty"`
 	Nodes         []Node  `json:"nodes"`
 	Edges         []Edge  `json:"edges"`
-	LastFirstDist float64 `json:"LastFirstDist"`
+	LastFirstDist float64 `json:"lastFirstDist"`
 }
 
 type Times struct {
