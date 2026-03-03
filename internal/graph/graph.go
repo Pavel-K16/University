@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"masters/internal/aero"
 	"masters/internal/logger"
+	"math"
 
 	"masters/internal/config"
 )
@@ -138,19 +139,22 @@ func (g *Graph) AddEdge(edge config.Edge) {
 
 func springDeformation(g *Graph, node, target *config.Node, edge config.Edge) float64 {
 	targetPos := target.Position
+	rest := edge.Rest
 
 	if edge.Periodic {
 		switch node.ID {
 		case g.FirstNodeID:
 			targetPos -= g.Period
+			rest *= -1
 		case g.LastNodeID:
 			targetPos += g.Period
+			rest *= -1
 		default:
 			targetPos = target.Position
 		}
 	}
 
-	return targetPos - node.Position - edge.Rest
+	return targetPos - node.Position - rest
 }
 
 // NetForce вычисляет чистую силу, действующую на узел
@@ -169,6 +173,7 @@ func (g *Graph) NetForce(nodeID int) float64 {
 		if targetNode == nil {
 			continue
 		}
+
 		dx := springDeformation(g, node, targetNode, edge) // деформация пружины
 
 		dv := node.Velocity - targetNode.Velocity
@@ -189,7 +194,9 @@ func (g *Graph) NetForce(nodeID int) float64 {
 		//log.Debugf("Aero Force 4 node: %d %f", nodeID, aeroForce)
 	}
 
-	//log.Debugf("Usual Force 4 Node %d: %f", nodeID, force)
+	if math.Abs(force) < 10.0 {
+		log.Debugf("Usual Force 4 Node %d: %f", nodeID, force)
+	}
 
 	return force + aeroForce
 }
@@ -283,7 +290,7 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 
 	koeff := 0.5 * v * v * b * rho
 	aeroDinamicForce *= koeff
-	log.Debugf("aeroDinamicForce 4 Node %d: %f", nodeID, aeroDinamicForce)
+	//log.Debugf("aeroDinamicForce 4 Node %d: %f", nodeID, aeroDinamicForce)
 	return aeroDinamicForce * aero.Scale
 }
 
