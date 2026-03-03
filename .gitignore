@@ -42,3 +42,6 @@ go.work
 
 # Wolfram
 wolfram/
+
+*.png
+*.jpeg
