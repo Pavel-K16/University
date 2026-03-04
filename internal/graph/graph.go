@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"masters/internal/aero"
 	"masters/internal/logger"
-	"math"
 
 	"masters/internal/config"
 )
@@ -191,12 +190,12 @@ func (g *Graph) NetForce(nodeID int) float64 {
 
 	if aero.AeroEnabled {
 		aeroForce = GetAeroForce(g, nodeID)
-		//log.Debugf("Aero Force 4 node: %d %f", nodeID, aeroForce)
+		log.Debugf("Aero Force 4 node: %d %f", nodeID, aeroForce)
 	}
 
-	if math.Abs(force) < 10.0 {
-		log.Debugf("Usual Force 4 Node %d: %f", nodeID, force)
-	}
+	//if math.Abs(force) < 10.0 {
+	log.Debugf("Usual Force 4 Node %d: %f", nodeID, force)
+	//}
 
 	return force + aeroForce
 }

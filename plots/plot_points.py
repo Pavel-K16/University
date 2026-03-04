@@ -13,6 +13,8 @@
 """
 
 from pathlib import Path
+import os
+import json
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -29,6 +31,33 @@ def load_two_column_txt(path: Path):
     return data[:, 0], data[:, 1]
 
 
+def get_node_ids_from_config(root_dir: Path) -> list[int]:
+    """
+    Читает активный конфиг (CONFIG или conf.json) и возвращает id узлов,
+    для которых нужно строить графики. По умолчанию — только подвижные.
+    """
+    config_name = os.environ.get("CONFIG", "conf")
+    config_path = root_dir / "internal" / "config" / "confs" / f"{config_name}.json"
+
+    if not config_path.exists():
+        print(f"Config not found: {config_path}, строю графики для всех graph_points*.txt")
+        return []
+
+    try:
+        with config_path.open("r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception as e:
+        print(f"Не удалось прочитать конфиг {config_path}: {e}. Строю графики для всех graph_points*.txt")
+        return []
+
+    nodes = cfg.get("nodes", [])
+    # Берём все подвижные узлы
+    ids = [int(n["id"]) for n in nodes if not n.get("fixed", False)]
+    ids = sorted(set(ids))
+    print(f"Найдены id узлов из конфига {config_name}: {ids}")
+    return ids
+
+
 def generate_plots_and_html():
     # Текущий файл: <root>/plots/plot_points.py
     plots_dir = Path(__file__).resolve().parent
@@ -41,7 +70,20 @@ def generate_plots_and_html():
     plots_dir.mkdir(parents=True, exist_ok=True)
 
     # ---------- Траектории graph_points*.txt ----------
-    graph_files = sorted(data_dir.glob("graph_points*.txt"))
+    node_ids = get_node_ids_from_config(root_dir)
+
+    if node_ids:
+        # Берём только файлы для узлов из конфига
+        graph_files = []
+        for node_id in node_ids:
+            path = data_dir / f"graph_points{node_id}.txt"
+            if path.exists():
+                graph_files.append(path)
+            else:
+                print(f"Файл для узла {node_id} не найден: {path}")
+    else:
+        # Фолбэк: все файлы
+        graph_files = sorted(data_dir.glob("graph_points*.txt"))
 
     traj_img_name = "trajectories.png"
     energy_img_name = "sum_energy.png"

@@ -22,12 +22,12 @@ type Times struct {
 }
 
 type Aero struct {
-	Enabled bool    `json:"enabled"`
-	Scale   float64 `json:"scale"`
-	V       float64 `json:"v"`
-	Pho     float64 `json:"rho"`
-	B       float64 `json:"b"`
-	M       float64 `json:"m"`
+	Enabled bool    `json:"enabled,omitempty"`
+	Scale   float64 `json:"scale,omitempty"`
+	V       float64 `json:"v,omitempty"`
+	Pho     float64 `json:"rho,omitempty"`
+	B       float64 `json:"b,omitempty"`
+	M       float64 `json:"m,omitempty"`
 }
 
 type Node struct {
