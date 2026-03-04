@@ -1,12 +1,12 @@
 {
   "times":{
    "t0":0.0,
-   "t": 10.0,
+   "t": 2.0,
    "dt":0.1
   },
   "aeroDynamicForce":
    {
-   "enabled": false,
+   "enabled": true,
    "scale": 1.0,
    "v": 1.0,
    "rho": 1.0,
@@ -18,35 +18,35 @@
      "id": 0,
      "fixed": false,
      "mass": 1.0,
-     "position": 0.5,
+     "position": 0.0,
      "velocity": 0.0
    },
    {
      "id": 1,
      "fixed": false,
      "mass": 1.0,
-     "position": 1.5,
+     "position": 1.0,
      "velocity": 0.0
    },
    {
      "id": 2,
      "fixed": false,
      "mass": 1.0,
-     "position": 2.5,
+     "position": 2.0,
      "velocity": 0.0
    },
    {
      "id": 3,
      "fixed": false,
      "mass": 1.0,
-     "position": 3.5,
+     "position": 3.0,
      "velocity": 0.0
    },
    {
      "id": 4,
      "fixed": false,
      "mass":1.0,
-     "position": 4.5,
+     "position": 4.0,
      "velocity": 0.0
    },
    {

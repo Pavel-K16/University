@@ -51,8 +51,8 @@ def get_node_ids_from_config(root_dir: Path) -> list[int]:
         return []
 
     nodes = cfg.get("nodes", [])
-    # Берём все подвижные узлы
-    ids = [int(n["id"]) for n in nodes if not n.get("fixed", False)]
+    # Берём все узлы, включая закреплённые
+    ids = [int(n["id"]) for n in nodes]
     ids = sorted(set(ids))
     print(f"Найдены id узлов из конфига {config_name}: {ids}")
     return ids

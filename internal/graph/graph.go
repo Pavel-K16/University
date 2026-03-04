@@ -153,6 +153,8 @@ func springDeformation(g *Graph, node, target *config.Node, edge config.Edge) fl
 		}
 	}
 
+	// Деформация пружины: (положение цели - положение узла - rest).
+	// При таком определении сила пружины F = k * dx будет восстанавливающей.
 	return targetPos - node.Position - rest
 }
 
@@ -177,7 +179,8 @@ func (g *Graph) NetForce(nodeID int) float64 {
 
 		dv := node.Velocity - targetNode.Velocity
 
-		springForce := -edge.K * dx
+		// Сила пружины, направленная к положению равновесия
+		springForce := edge.K * dx
 
 		damperForce := -edge.D * dv //(dx*dx - 1) * dv // var der pol
 
