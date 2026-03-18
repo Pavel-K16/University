@@ -229,6 +229,24 @@ func (g *Graph) TotalKineticEnergy() float64 {
 	return sum
 }
 
+// equilibriumPosition возвращает "ненапряжённое" положение узла по опорной пружине к фиксированному узлу.
+// Если такой пружины нет, считается, что равновесное положение совпадает с текущим.
+func (g *Graph) equilibriumPosition(nodeID int) float64 {
+	node := g.Nodes[nodeID]
+	if node == nil {
+		return 0
+	}
+
+	for _, edge := range node.Edges {
+		target := g.Nodes[edge.TargetID]
+		if target != nil && target.IsFixed {
+			return target.Position - edge.Rest
+		}
+	}
+
+	return node.Position
+}
+
 func GetAeroForce(g *Graph, nodeID int) float64 {
 	aeroDinamicForce := 0.0
 	node := g.Nodes[nodeID]
@@ -248,6 +266,7 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 		}
 
 		var aeroKoef float64
+
 		if edge.Periodic {
 			switch nodeID {
 			case g.FirstNodeID:
@@ -272,17 +291,26 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 
 		if edge.Periodic {
 			var pos float64
+			var eq float64
+
 			switch nodeID {
 			case g.FirstNodeID:
 				pos = targetNode.Position - g.Period
+				eq = g.equilibriumPosition(edge.TargetID) - g.Period
 			case g.LastNodeID:
 				pos = targetNode.Position + g.Period
+				eq = g.equilibriumPosition(edge.TargetID) + g.Period
 			default:
 				pos = targetNode.Position
+				eq = g.equilibriumPosition(edge.TargetID)
 			}
-			aeroDinamicForce += aeroKoef * pos
+			delta := pos - eq
+			aeroDinamicForce += aeroKoef * delta
 		} else {
-			aeroDinamicForce += aeroKoef * targetNode.Position
+			pos := targetNode.Position
+			eq := g.equilibriumPosition(edge.TargetID)
+			delta := pos - eq
+			aeroDinamicForce += aeroKoef * delta
 		}
 	}
 
