@@ -9,6 +9,7 @@ import (
 	iofile "masters/internal/ioFile"
 	"masters/internal/logger"
 	"masters/internal/numMethods/utils"
+	"os"
 )
 
 var (
@@ -42,6 +43,18 @@ func solveWithGraph(t0, T, dt float64) {
 	solver := equationsolver.NewGraphSolver(graph, dt)
 
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt)
+
+	// Для отладки/аналитики: оценим логарифмический декремент затухания для node 0
+	// только для conf.json.
+	configName := os.Getenv("CONFIG")
+	if configName == "" {
+		configName = "conf"
+	}
+	if configName == "conf" {
+		// В лог-де-кременте пропускаем первые пики, чтобы уйти от переходного процесса.
+		skipFirst := 2
+		utils.PrintLogDecrementForConfNode0(config.GetConfig(), skipFirst)
+	}
 }
 
 func setAeroParams(graph *g.Graph) {
