@@ -15,6 +15,7 @@
 from pathlib import Path
 import os
 import json
+import html as html_lib
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -189,8 +190,78 @@ def generate_plots_and_html():
 
     # ---------- Генерация HTML ----------
     html_path = plots_dir / "index.html"
+    logs_path = data_dir / "decrement_details.log"
+    logs_text = ""
+    if logs_path.exists():
+        try:
+            logs_text = logs_path.read_text(encoding="utf-8")
+        except Exception:
+            logs_text = ""
+    logs_html = "<p>Логи отсутствуют.</p>" if not logs_text.strip() else f"<pre>{html_lib.escape(logs_text)}</pre>"
 
-    html = f"""<!DOCTYPE html>
+    # Сводка по нодам: берём строки вида
+    # "Node 0: xEq=..., skipFirst=..., usedPairs=..., delta=..., decay=...%"
+    node_summary_lines = []
+    for line in logs_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Node ") and "xEq=" in stripped and "delta=" in stripped and "decay=" in stripped:
+            node_summary_lines.append(stripped)
+    if node_summary_lines:
+        node_summary_html = "<ul>" + "".join(f"<li><code>{html_lib.escape(line)}</code></li>" for line in node_summary_lines) + "</ul>"
+    else:
+        node_summary_html = "<p>Сводка по нодам отсутствует.</p>"
+
+    formulas_html = """
+<div class="formula-block" style="line-height:1.8">
+  <p><b>Логарифмический декремент по соседним пикам:</b></p>
+  <math display="block">
+    <msub><mi>&delta;</mi><mi>n</mi></msub>
+    <mo>=</mo>
+    <mi>ln</mi>
+    <mfrac>
+      <msub><mi>A</mi><mi>n</mi></msub>
+      <msub><mi>A</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub>
+    </mfrac>
+  </math>
+
+  <p><b>Средний декремент по интервалу:</b></p>
+  <math display="block">
+    <mi>&delta;</mi>
+    <mo>=</mo>
+    <mfrac><mn>1</mn><mi>N</mi></mfrac>
+    <munderover>
+      <mo>&Sigma;</mo>
+      <mrow><mi>n</mi><mo>=</mo><mn>1</mn></mrow>
+      <mi>N</mi>
+    </munderover>
+    <msub><mi>&delta;</mi><mi>n</mi></msub>
+  </math>
+
+  <p><b>Связь с процентным уменьшением амплитуды за один пик-период:</b></p>
+  <math display="block">
+    <mi>decay</mi><mo>(</mo><mo>%</mo><mo>)</mo>
+    <mo>=</mo>
+    <mo>(</mo><mn>1</mn><mo>-</mo>
+    <msup><mi>e</mi><mrow><mo>-</mo><mi>&delta;</mi></mrow></msup>
+    <mo>)</mo>
+    <mo>&middot;</mo><mn>100</mn><mo>%</mo>
+  </math>
+
+  <p><b>Амплитуда пика:</b></p>
+  <math display="block">
+    <msub><mi>A</mi><mi>n</mi></msub>
+    <mo>=</mo>
+    <mo>|</mo>
+    <mi>x</mi><mo>(</mo><msub><mi>t</mi><mi>n</mi></msub><mo>)</mo>
+    <mo>-</mo>
+    <msub><mi>x</mi><mrow><mi>e</mi><mi>q</mi></mrow></msub>
+    <mo>|</mo>
+  </math>
+  <p class="formula-note"><b>Где</b> <code>t<sub>n</sub></code> — момент времени, в который достигается n-й амплитудный пик (локальный максимум амплитуды).</p>
+</div>
+"""
+
+    html_content = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -215,6 +286,14 @@ def generate_plots_and_html():
     .block {{
       margin-bottom: 32px;
     }}
+    .formula-block math {{
+      font-size: 1.55em;
+    }}
+    .formula-note {{
+      margin-top: 8px;
+      font-size: 1.08em;
+      color: #202020;
+    }}
   </style>
 </head>
 <body>
@@ -234,11 +313,26 @@ def generate_plots_and_html():
     <h2>Суммарная энергия (sumEnergyPoints.txt)</h2>
     {"<p>Файл не найден.</p>" if not energy_exists else f'<img src="{energy_img_name}" alt="Total energy">'}
   </div>
+
+  <div class="block">
+    <h2>Сводка декремента по узлам</h2>
+    {node_summary_html}
+  </div>
+
+  <div class="block">
+    <h2>Формулы расчёта декремента</h2>
+    {formulas_html}
+  </div>
+
+  <div class="block">
+    <h2>Логи расчёта декремента</h2>
+    {logs_html}
+  </div>
 </body>
 </html>
 """
 
-    html_path.write_text(html, encoding="utf-8")
+    html_path.write_text(html_content, encoding="utf-8")
 
 
 if __name__ == "__main__":

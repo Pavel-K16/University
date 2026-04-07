@@ -57,7 +57,7 @@ func solveWithGraph(t0, T, dt float64) {
 	if configName == "conf" {
 		// В лог-де-кременте пропускаем первые пики, чтобы уйти от переходного процесса.
 		skipFirst := 2
-		utils.PrintLogDecrementForConfNode0(config.GetConfig(), skipFirst)
+		utils.PrintLogDecrementForAllNodes(config.GetConfig(), skipFirst)
 	}
 }
 

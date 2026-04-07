@@ -3,6 +3,8 @@ package utils
 import (
 	"fmt"
 	"math"
+	"os"
+	"strings"
 
 	config "masters/internal/config"
 )
@@ -11,6 +13,10 @@ type maxPoint struct {
 	t float64
 	a float64 // amplitude = |x - xEq|
 }
+
+const (
+	decrementDetailsLogPath = "../wolfram/paramsAndPoints/decrement_details.log"
+)
 
 // equilibriumForNodeFromConfig вычисляет равновесное положение xEq для nodeID,
 // исходя из "ненапряжённого" состояния пружины к фиксированному узлу.
@@ -153,40 +159,99 @@ func EstimateLogDecrementFromGraphPoints(nodeID int, xEq float64, skipFirstMaxim
 	return sum / float64(len(deltas)), len(deltas), nil
 }
 
-// PrintLogDecrementForConfNode0 посчитает оценку декремента для nodeID=0
-// (только для конфигурации conf.json) и распечатает её в консоль.
-func PrintLogDecrementForConfNode0(cnf *config.Graph, skipFirstMaxima int) {
-	const nodeID = 0
-	// равновесное положение узла
-	xEq, ok := equilibriumForNodeFromConfig(cnf, nodeID)
-	if !ok {
-		fmt.Printf("LogDecrement: cannot compute equilibrium for node %d from config\n", nodeID)
+// PrintLogDecrementForAllNodes считает декремент затухания для всех подвижных узлов,
+// печатает краткую сводку в консоль и записывает детальные логи в файл.
+func PrintLogDecrementForAllNodes(cnf *config.Graph, skipFirstMaxima int) {
+	if cnf == nil {
+		fmt.Printf("LogDecrement: nil config\n")
 		return
 	}
 
-	points, err := GetPointsFromFile(nodeID)
-	if err != nil {
-		fmt.Printf("LogDecrement: error reading graph_points: %v\n", err)
-		return
-	}
-	adapted := make([]PointLike, 0, len(points))
-	for i := range points {
-		adapted = append(adapted, pointAdapter{t: points[i].Time, x: points[i].Position})
-	}
-	maxs := findAmplitudeMaxima(adapted, xEq)
-
-	delta, used, err := EstimateLogDecrementFromGraphPoints(nodeID, xEq, skipFirstMaxima)
-	if err != nil {
-		fmt.Printf("LogDecrement: error: %v\n", err)
-		return
+	type nodeResult struct {
+		nodeID int
+		xEq    float64
+		delta  float64
+		used   int
+		maxs   []maxPoint
+		err    error
 	}
 
-	fmt.Printf("LogDecrement(node %d): xEq=%.8f skipFirst=%d usedPairs=%d delta≈%.8f\n",
-		nodeID, xEq, skipFirstMaxima, used, delta)
-	for i := skipFirstMaxima; i < len(maxs)-1; i++ {
-		fmt.Printf("  A_%d=%.8f (t=%.4f), A_%d=%.8f (t=%.4f), delta=%.8f\n",
-			i, maxs[i].a, maxs[i].t,
-			i+1, maxs[i+1].a, maxs[i+1].t,
-			math.Log(maxs[i].a/maxs[i+1].a))
+	results := make([]nodeResult, 0)
+	for _, node := range cnf.Nodes {
+		if node.IsFixed {
+			continue
+		}
+
+		r := nodeResult{nodeID: node.ID}
+		xEq, ok := equilibriumForNodeFromConfig(cnf, node.ID)
+		if !ok {
+			r.err = fmt.Errorf("cannot compute equilibrium")
+			results = append(results, r)
+			continue
+		}
+		r.xEq = xEq
+
+		points, err := GetPointsFromFile(node.ID)
+		if err != nil {
+			r.err = fmt.Errorf("error reading graph_points: %w", err)
+			results = append(results, r)
+			continue
+		}
+
+		adapted := make([]PointLike, 0, len(points))
+		for i := range points {
+			adapted = append(adapted, pointAdapter{t: points[i].Time, x: points[i].Position})
+		}
+		r.maxs = findAmplitudeMaxima(adapted, xEq)
+
+		delta, used, err := EstimateLogDecrementFromGraphPoints(node.ID, xEq, skipFirstMaxima)
+		if err != nil {
+			r.err = err
+			results = append(results, r)
+			continue
+		}
+		r.delta = delta
+		r.used = used
+		results = append(results, r)
 	}
+
+	// Краткая человекочитаемая сводка в процентах (до 2 знаков) перед детальными логами.
+	fmt.Println("=== Log Decrement Summary (per node) ===")
+	for _, r := range results {
+		if r.err != nil {
+			fmt.Printf("Node %d: failed (%v)\n", r.nodeID, r.err)
+			continue
+		}
+		decayPercent := (1.0 - math.Exp(-r.delta)) * 100.0
+		// delta показываем с нормальной точностью, иначе разные значения выглядят одинаково.
+		fmt.Printf("Node %d: delta=%.6f, amplitude decay per peak=%.2f%%\n",
+			r.nodeID, r.delta, decayPercent)
+	}
+
+	// Детальные логи по каждому узлу (A_n и delta_n) в консоль и в файл.
+	var sb strings.Builder
+	sb.WriteString("### Logarithmic decrement details (all nodes)\n")
+	for _, r := range results {
+		if r.err != nil {
+			line := fmt.Sprintf("Node %d: failed (%v)\n\n", r.nodeID, r.err)
+			sb.WriteString(line)
+			continue
+		}
+
+		decayPercent := (1.0 - math.Exp(-r.delta)) * 100.0
+		head := fmt.Sprintf("Node %d: xEq=%.8f, skipFirst=%d, usedPairs=%d, delta=%.8f, decay=%.2f%%\n",
+			r.nodeID, r.xEq, skipFirstMaxima, r.used, r.delta, decayPercent)
+		sb.WriteString(head)
+
+		for i := skipFirstMaxima; i < len(r.maxs)-1; i++ {
+			line := fmt.Sprintf("  A_%d=%.8f (t=%.4f), A_%d=%.8f (t=%.4f), delta=%.8f\n",
+				i, r.maxs[i].a, r.maxs[i].t,
+				i+1, r.maxs[i+1].a, r.maxs[i+1].t,
+				math.Log(r.maxs[i].a/r.maxs[i+1].a))
+			sb.WriteString(line)
+		}
+		sb.WriteString("\n")
+	}
+
+	_ = os.WriteFile(decrementDetailsLogPath, []byte(sb.String()), 0666)
 }

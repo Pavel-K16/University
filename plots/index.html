@@ -23,6 +23,14 @@
     .block {
       margin-bottom: 32px;
     }
+    .formula-block math {
+      font-size: 1.55em;
+    }
+    .formula-note {
+      margin-top: 8px;
+      font-size: 1.08em;
+      color: #202020;
+    }
   </style>
 </head>
 <body>
@@ -41,6 +49,111 @@
   <div class="block">
     <h2>Суммарная энергия (sumEnergyPoints.txt)</h2>
     <img src="sum_energy.png" alt="Total energy">
+  </div>
+
+  <div class="block">
+    <h2>Сводка декремента по узлам</h2>
+    <ul><li><code>Node 0: xEq=0.00000000, skipFirst=2, usedPairs=7, delta=0.10309926, decay=9.80%</code></li><li><code>Node 1: xEq=1.00000000, skipFirst=2, usedPairs=6, delta=0.09238547, decay=8.82%</code></li><li><code>Node 2: xEq=2.00000000, skipFirst=2, usedPairs=6, delta=0.05870573, decay=5.70%</code></li><li><code>Node 3: xEq=3.00000000, skipFirst=2, usedPairs=6, delta=0.02175483, decay=2.15%</code></li><li><code>Node 4: xEq=4.00000000, skipFirst=2, usedPairs=6, delta=0.05915067, decay=5.74%</code></li></ul>
+  </div>
+
+  <div class="block">
+    <h2>Формулы расчёта декремента</h2>
+    
+<div class="formula-block" style="line-height:1.8">
+  <p><b>Логарифмический декремент по соседним пикам:</b></p>
+  <math display="block">
+    <msub><mi>&delta;</mi><mi>n</mi></msub>
+    <mo>=</mo>
+    <mi>ln</mi>
+    <mfrac>
+      <msub><mi>A</mi><mi>n</mi></msub>
+      <msub><mi>A</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub>
+    </mfrac>
+  </math>
+
+  <p><b>Средний декремент по интервалу:</b></p>
+  <math display="block">
+    <mi>&delta;</mi>
+    <mo>=</mo>
+    <mfrac><mn>1</mn><mi>N</mi></mfrac>
+    <munderover>
+      <mo>&Sigma;</mo>
+      <mrow><mi>n</mi><mo>=</mo><mn>1</mn></mrow>
+      <mi>N</mi>
+    </munderover>
+    <msub><mi>&delta;</mi><mi>n</mi></msub>
+  </math>
+
+  <p><b>Связь с процентным уменьшением амплитуды за один пик-период:</b></p>
+  <math display="block">
+    <mi>decay</mi><mo>(</mo><mo>%</mo><mo>)</mo>
+    <mo>=</mo>
+    <mo>(</mo><mn>1</mn><mo>-</mo>
+    <msup><mi>e</mi><mrow><mo>-</mo><mi>&delta;</mi></mrow></msup>
+    <mo>)</mo>
+    <mo>&middot;</mo><mn>100</mn><mo>%</mo>
+  </math>
+
+  <p><b>Амплитуда пика:</b></p>
+  <math display="block">
+    <msub><mi>A</mi><mi>n</mi></msub>
+    <mo>=</mo>
+    <mo>|</mo>
+    <mi>x</mi><mo>(</mo><msub><mi>t</mi><mi>n</mi></msub><mo>)</mo>
+    <mo>-</mo>
+    <msub><mi>x</mi><mrow><mi>e</mi><mi>q</mi></mrow></msub>
+    <mo>|</mo>
+  </math>
+  <p class="formula-note"><b>Где</b> <code>t<sub>n</sub></code> — момент времени, в который достигается n-й амплитудный пик (локальный максимум амплитуды).</p>
+</div>
+
+  </div>
+
+  <div class="block">
+    <h2>Логи расчёта декремента</h2>
+    <pre>### Logarithmic decrement details (all nodes)
+Node 0: xEq=0.00000000, skipFirst=2, usedPairs=7, delta=0.10309926, decay=9.80%
+  A_2=0.14646658 (t=6.7000), A_3=0.12038668 (t=9.8000), delta=0.19608838
+  A_3=0.12038668 (t=9.8000), A_4=0.10491597 (t=13.0000), delta=0.13754914
+  A_4=0.10491597 (t=13.0000), A_5=0.09456596 (t=16.1000), delta=0.10386218
+  A_5=0.09456596 (t=16.1000), A_6=0.08703597 (t=19.3000), delta=0.08297615
+  A_6=0.08703597 (t=19.3000), A_7=0.08093262 (t=22.4000), delta=0.07270452
+  A_7=0.08093262 (t=22.4000), A_8=0.07584006 (t=25.6000), delta=0.06499022
+  A_8=0.07584006 (t=25.6000), A_9=0.07117221 (t=28.8000), delta=0.06352424
+
+Node 1: xEq=1.00000000, skipFirst=2, usedPairs=6, delta=0.09238547, decay=8.82%
+  A_2=0.12875206 (t=8.3000), A_3=0.11416845 (t=11.6000), delta=0.12021354
+  A_3=0.11416845 (t=11.6000), A_4=0.10252197 (t=14.8000), delta=0.10759788
+  A_4=0.10252197 (t=14.8000), A_5=0.09320360 (t=18.0000), delta=0.09529083
+  A_5=0.09320360 (t=18.0000), A_6=0.08560424 (t=21.2000), delta=0.08505155
+  A_6=0.08560424 (t=21.2000), A_7=0.07936719 (t=24.3000), delta=0.07564974
+  A_7=0.07936719 (t=24.3000), A_8=0.07396380 (t=27.5000), delta=0.07050925
+
+Node 2: xEq=2.00000000, skipFirst=2, usedPairs=6, delta=0.05870573, decay=5.70%
+  A_2=0.10118230 (t=10.2000), A_3=0.09777628 (t=13.4000), delta=0.03424185
+  A_3=0.09777628 (t=13.4000), A_4=0.09248274 (t=16.6000), delta=0.05566000
+  A_4=0.09248274 (t=16.6000), A_5=0.08679120 (t=19.8000), delta=0.06351675
+  A_5=0.08679120 (t=19.8000), A_6=0.08124295 (t=23.0000), delta=0.06606118
+  A_6=0.08124295 (t=23.0000), A_7=0.07601599 (t=26.2000), delta=0.06650036
+  A_7=0.07601599 (t=26.2000), A_8=0.07114283 (t=29.4000), delta=0.06625425
+
+Node 3: xEq=3.00000000, skipFirst=2, usedPairs=6, delta=0.02175483, decay=2.15%
+  A_2=0.08230029 (t=9.1000), A_3=0.08635559 (t=12.3000), delta=-0.04809889
+  A_3=0.08635559 (t=12.3000), A_4=0.08654614 (t=15.4000), delta=-0.00220406
+  A_4=0.08654614 (t=15.4000), A_5=0.08424830 (t=18.6000), delta=0.02690921
+  A_5=0.08424830 (t=18.6000), A_6=0.08063880 (t=21.8000), delta=0.04378845
+  A_6=0.08063880 (t=21.8000), A_7=0.07647534 (t=24.9000), delta=0.05301159
+  A_7=0.07647534 (t=24.9000), A_8=0.07222929 (t=28.1000), delta=0.05712268
+
+Node 4: xEq=4.00000000, skipFirst=2, usedPairs=6, delta=0.05915067, decay=5.74%
+  A_2=0.10444748 (t=8.1000), A_3=0.09467385 (t=11.2000), delta=0.09824658
+  A_3=0.09467385 (t=11.2000), A_4=0.08938654 (t=14.3000), delta=0.05746766
+  A_4=0.08938654 (t=14.3000), A_5=0.08537646 (t=17.4000), delta=0.04589974
+  A_5=0.08537646 (t=17.4000), A_6=0.08138668 (t=20.5000), delta=0.04785882
+  A_6=0.08138668 (t=20.5000), A_7=0.07739810 (t=23.7000), delta=0.05024933
+  A_7=0.07739810 (t=23.7000), A_8=0.07324283 (t=26.9000), delta=0.05518189
+
+</pre>
   </div>
 </body>
 </html>
