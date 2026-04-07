@@ -43,6 +43,10 @@ func solveWithGraph(t0, T, dt float64) {
 	solver := equationsolver.NewGraphSolver(graph, dt)
 
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt)
+	ampSkipFirst := 0
+	if err := utils.WriteAmplitudePointsFromGraphFiles(config.GetConfig(), ampSkipFirst); err != nil {
+		log.Errorf("Error writing amplitude points: %v", err)
+	}
 
 	// Для отладки/аналитики: оценим логарифмический декремент затухания для node 0
 	// только для conf.json.

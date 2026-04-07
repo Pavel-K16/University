@@ -5,7 +5,6 @@ import (
 	"math"
 
 	config "masters/internal/config"
-	"masters/internal/graph"
 )
 
 type maxPoint struct {
@@ -17,9 +16,9 @@ type maxPoint struct {
 // исходя из "ненапряжённого" состояния пружины к фиксированному узлу.
 //
 // Логика:
-// - если в конфиге есть ребро from=nodeID -> to=fixed с rest=r, то в графе xEq = xFixed - r
-// - если в конфиге есть ребро from=fixed -> to=nodeID с rest=r, то из-за инвертирования rest
-//   (см. Graph.AddEdge) получается xEq = xFixed + r
+//   - если в конфиге есть ребро from=nodeID -> to=fixed с rest=r, то в графе xEq = xFixed - r
+//   - если в конфиге есть ребро from=fixed -> to=nodeID с rest=r, то из-за инвертирования rest
+//     (см. Graph.AddEdge) получается xEq = xFixed + r
 //
 // Для текущей постановки мы ожидаем, что от nodeID есть связь с одним фиксированным узлом.
 func equilibriumForNodeFromConfig(cnf *config.Graph, nodeID int) (float64, bool) {
@@ -62,6 +61,46 @@ func equilibriumForNodeFromConfig(cnf *config.Graph, nodeID int) (float64, bool)
 // считает амплитуды A=|x-xEq|, находит локальные максимумы амплитуды и возвращает оценку логарифмического декремента.
 //
 // skipFirstMaxima — сколько первых максимумов амплитуды пропустить (обычно 2+).
+func findAmplitudeMaxima(points []PointLike, xEq float64) []maxPoint {
+	A := make([]float64, len(points))
+	for i := range points {
+		A[i] = math.Abs(points[i].PositionValue() - xEq)
+	}
+
+	maxs := make([]maxPoint, 0)
+
+	// Левый край: добавляем только если сразу идём вниз (валидный стартовый максимум).
+	if len(A) >= 2 && A[0] > A[1] {
+		maxs = append(maxs, maxPoint{t: points[0].TimeValue(), a: A[0]})
+	}
+
+	for i := 1; i < len(A)-1; i++ {
+		dL := A[i] - A[i-1]
+		dR := A[i+1] - A[i]
+		if dL > 0 && dR < 0 {
+			maxs = append(maxs, maxPoint{t: points[i].TimeValue(), a: A[i]})
+		}
+	}
+
+	// Правый край не добавляем: на конце интервала часто незавершённый полупериод,
+	// и это даёт ложный "пик" амплитуды.
+
+	return maxs
+}
+
+type PointLike interface {
+	TimeValue() float64
+	PositionValue() float64
+}
+
+type pointAdapter struct {
+	t float64
+	x float64
+}
+
+func (p pointAdapter) TimeValue() float64     { return p.t }
+func (p pointAdapter) PositionValue() float64 { return p.x }
+
 func EstimateLogDecrementFromGraphPoints(nodeID int, xEq float64, skipFirstMaxima int) (delta float64, used int, err error) {
 	points, err := GetPointsFromFile(nodeID)
 	if err != nil {
@@ -71,35 +110,15 @@ func EstimateLogDecrementFromGraphPoints(nodeID int, xEq float64, skipFirstMaxim
 		return 0, 0, fmt.Errorf("not enough points: %d", len(points))
 	}
 
-	// Амплитуда A(t)=|x-xEq|
-	A := make([]float64, len(points))
+	adapted := make([]PointLike, 0, len(points))
 	for i := range points {
-		A[i] = math.Abs(points[i].Position - xEq)
+		adapted = append(adapted, pointAdapter{
+			t: points[i].Time,
+			x: points[i].Position,
+		})
 	}
 
-	// Находим локальные максимумы A[i].
-	// Дискретно:
-	// - на внутренних точках: если A растёт и затем начинает убывать
-	// - на границах: если A[0] >= A[1] и/или A[n-1] >= A[n-2]
-	maxs := make([]maxPoint, 0)
-
-	// Левый край
-	if len(A) >= 2 && A[0] >= A[1] {
-		maxs = append(maxs, maxPoint{t: points[0].Time, a: A[0]})
-	}
-
-	for i := 1; i < len(A)-1; i++ {
-		dL := A[i] - A[i-1]
-		dR := A[i+1] - A[i]
-		if dL > 0 && dR < 0 {
-			maxs = append(maxs, maxPoint{t: points[i].Time, a: A[i]})
-		}
-	}
-
-	// Правый край
-	if len(A) >= 2 && A[len(A)-1] >= A[len(A)-2] {
-		maxs = append(maxs, maxPoint{t: points[len(A)-1].Time, a: A[len(A)-1]})
-	}
+	maxs := findAmplitudeMaxima(adapted, xEq)
 
 	if len(maxs) < 2 {
 		return 0, 0, fmt.Errorf("not enough amplitude maxima: maxs=%d (need >=2 oscillation peaks; increase T or reduce damping)", len(maxs))
@@ -138,12 +157,23 @@ func EstimateLogDecrementFromGraphPoints(nodeID int, xEq float64, skipFirstMaxim
 // (только для конфигурации conf.json) и распечатает её в консоль.
 func PrintLogDecrementForConfNode0(cnf *config.Graph, skipFirstMaxima int) {
 	const nodeID = 0
-
+	// равновесное положение узла
 	xEq, ok := equilibriumForNodeFromConfig(cnf, nodeID)
 	if !ok {
 		fmt.Printf("LogDecrement: cannot compute equilibrium for node %d from config\n", nodeID)
 		return
 	}
+
+	points, err := GetPointsFromFile(nodeID)
+	if err != nil {
+		fmt.Printf("LogDecrement: error reading graph_points: %v\n", err)
+		return
+	}
+	adapted := make([]PointLike, 0, len(points))
+	for i := range points {
+		adapted = append(adapted, pointAdapter{t: points[i].Time, x: points[i].Position})
+	}
+	maxs := findAmplitudeMaxima(adapted, xEq)
 
 	delta, used, err := EstimateLogDecrementFromGraphPoints(nodeID, xEq, skipFirstMaxima)
 	if err != nil {
@@ -153,6 +183,10 @@ func PrintLogDecrementForConfNode0(cnf *config.Graph, skipFirstMaxima int) {
 
 	fmt.Printf("LogDecrement(node %d): xEq=%.8f skipFirst=%d usedPairs=%d delta≈%.8f\n",
 		nodeID, xEq, skipFirstMaxima, used, delta)
-	_ = graph.Point{} // keep import of graph for future extension
+	for i := skipFirstMaxima; i < len(maxs)-1; i++ {
+		fmt.Printf("  A_%d=%.8f (t=%.4f), A_%d=%.8f (t=%.4f), delta=%.8f\n",
+			i, maxs[i].a, maxs[i].t,
+			i+1, maxs[i+1].a, maxs[i+1].t,
+			math.Log(maxs[i].a/maxs[i+1].a))
+	}
 }
-

@@ -25,7 +25,11 @@ def load_two_column_txt(path: Path):
     Ожидается файл с двумя столбцами: t, value.
     Возвращает (t, y) как numpy-массивы.
     """
+    if path.stat().st_size == 0:
+        return np.array([]), np.array([])
     data = np.loadtxt(path)
+    if np.size(data) == 0:
+        return np.array([]), np.array([])
     if data.ndim == 1:
         data = data[None, :]
     return data[:, 0], data[:, 1]
@@ -54,8 +58,22 @@ def get_node_ids_from_config(root_dir: Path) -> list[int]:
     # Берём все узлы, включая закреплённые
     ids = [int(n["id"]) for n in nodes]
     ids = sorted(set(ids))
-    print(f"Найдены id узлов из конфига {config_name}: {ids}")
     return ids
+
+
+def get_movable_node_ids_from_config(root_dir: Path) -> list[int]:
+    config_name = os.environ.get("CONFIG", "conf")
+    config_path = root_dir / "internal" / "config" / "confs" / f"{config_name}.json"
+    if not config_path.exists():
+        return []
+    try:
+        with config_path.open("r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception:
+        return []
+    nodes = cfg.get("nodes", [])
+    ids = [int(n["id"]) for n in nodes if not n.get("fixed", False)]
+    return sorted(set(ids))
 
 
 def generate_plots_and_html():
@@ -86,6 +104,7 @@ def generate_plots_and_html():
         graph_files = sorted(data_dir.glob("graph_points*.txt"))
 
     traj_img_name = "trajectories.png"
+    amp_img_name = "amplitudes.png"
     energy_img_name = "sum_energy.png"
 
     if graph_files:
@@ -94,6 +113,8 @@ def generate_plots_and_html():
 
         for idx, path in enumerate(graph_files):
             t, x = load_two_column_txt(path)
+            if t.size == 0:
+                continue
             label = path.stem  # например, 'graph_points0'
             plt.plot(t, x, label=label, color=colors[idx % len(colors)])
 
@@ -107,9 +128,42 @@ def generate_plots_and_html():
         out_traj = plots_dir / traj_img_name
         plt.savefig(out_traj, dpi=200)
         plt.close()
-        print(f"Траектории сохранены в {out_traj}")
     else:
         print(f"Файлы graph_points*.txt не найдены в {data_dir}")
+
+    # ---------- Амплитуды amplitude_points*.txt ----------
+    # Берём именно готовые файлы амплитуд и просто отображаем точки с них.
+    # Шаблон: amplitude_points%d.txt
+    amp_files = []
+    for node_id in [0, 1, 2, 3, 4]:
+        path = data_dir / f"amplitude_points{node_id}.txt"
+        if path.exists():
+            amp_files.append(path)
+
+    if amp_files:
+        plt.figure(figsize=(10, 6))
+        colors = plt.cm.tab10.colors
+
+        for idx, path in enumerate(amp_files):
+            t, a = load_two_column_txt(path)
+            if t.size == 0:
+                continue
+            label = path.stem  # например, 'amplitude_points0'
+            # Показываем именно точки A_n из файла, без дополнительной обработки.
+            plt.plot(t, a, marker="o", linestyle="-", label=label, color=colors[idx % len(colors)])
+
+        plt.xlabel("t")
+        plt.ylabel("|x - x_eq|")
+        plt.title("Amplitudes from amplitude_points*.txt")
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+
+        out_amp = plots_dir / amp_img_name
+        plt.savefig(out_amp, dpi=200)
+        plt.close()
+    else:
+        print(f"Файлы amplitude_points*.txt не найдены в {data_dir}")
 
     # ---------- Суммарная энергия sumEnergyPoints.txt ----------
     energy_path = data_dir / "sumEnergyPoints.txt"
@@ -130,7 +184,6 @@ def generate_plots_and_html():
         out_energy = plots_dir / energy_img_name
         plt.savefig(out_energy, dpi=200)
         plt.close()
-        print(f"График энергии сохранён в {out_energy}")
     else:
         print(f"Файл с энергией не найден: {energy_path}")
 
@@ -173,6 +226,11 @@ def generate_plots_and_html():
   </div>
 
   <div class="block">
+    <h2>Амплитуды узлов (amplitude_points*.txt)</h2>
+    {"<p>Файлы не найдены.</p>" if not amp_files else f'<img src="{amp_img_name}" alt="Amplitudes">'}
+  </div>
+
+  <div class="block">
     <h2>Суммарная энергия (sumEnergyPoints.txt)</h2>
     {"<p>Файл не найден.</p>" if not energy_exists else f'<img src="{energy_img_name}" alt="Total energy">'}
   </div>
@@ -181,7 +239,6 @@ def generate_plots_and_html():
 """
 
     html_path.write_text(html, encoding="utf-8")
-    print(f"HTML сохранён в {html_path}")
 
 
 if __name__ == "__main__":
