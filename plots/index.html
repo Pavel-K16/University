@@ -155,5 +155,86 @@ Node 4: xEq=4.00000000, skipFirst=2, usedPairs=6, delta=0.05915067, decay=5.74%
 
 </pre>
   </div>
+
+  <div class="block">
+    <h2>Шпаргалка (декремент)</h2>
+    <p><b>Амплитуда n-го пика:</b></p>
+    <math display="block">
+      <msub><mi>A</mi><mi>n</mi></msub>
+      <mo>=</mo>
+      <mo>|</mo>
+      <mi>x</mi><mo>(</mo><msub><mi>t</mi><mi>n</mi></msub><mo>)</mo>
+      <mo>-</mo>
+      <msub><mi>x</mi><mrow><mi>e</mi><mi>q</mi></mrow></msub>
+      <mo>|</mo>
+    </math>
+
+    <p><b>Декремент по соседним пикам:</b></p>
+    <math display="block">
+      <msub><mi>&delta;</mi><mi>n</mi></msub>
+      <mo>=</mo>
+      <mi>ln</mi>
+      <mfrac>
+        <msub><mi>A</mi><mi>n</mi></msub>
+        <msub><mi>A</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub>
+      </mfrac>
+    </math>
+
+    <p><b>Средний декремент по интервалу:</b></p>
+    <math display="block">
+      <mi>&delta;</mi>
+      <mo>=</mo>
+      <mfrac><mn>1</mn><mi>N</mi></mfrac>
+      <munderover>
+        <mo>&Sigma;</mo>
+        <mrow><mi>n</mi><mo>=</mo><mn>1</mn></mrow>
+        <mi>N</mi>
+      </munderover>
+      <msub><mi>&delta;</mi><mi>n</mi></msub>
+    </math>
+
+    <p><b>Уменьшение амплитуды за один пик-период:</b></p>
+    <math display="block">
+      <mi>decay</mi><mo>(</mo><mo>%</mo><mo>)</mo>
+      <mo>=</mo>
+      <mo>(</mo><mn>1</mn><mo>-</mo>
+      <msup><mi>e</mi><mrow><mo>-</mo><mi>&delta;</mi></mrow></msup>
+      <mo>)</mo>
+      <mo>&middot;</mo><mn>100</mn><mo>%</mo>
+    </math>
+
+    <p><b>Связь с коэффициентом затухания (underdamped):</b></p>
+    <math display="block">
+      <mi>&zeta;</mi>
+      <mo>=</mo>
+      <mfrac>
+        <mi>&delta;</mi>
+        <msqrt>
+          <mrow><mn>4</mn><msup><mi>&pi;</mi><mn>2</mn></msup><mo>+</mo><msup><mi>&delta;</mi><mn>2</mn></msup></mrow>
+        </msqrt>
+      </mfrac>
+    </math>
+    <math display="block">
+      <mi>&delta;</mi>
+      <mo>=</mo>
+      <mfrac>
+        <mrow><mn>2</mn><mi>&pi;</mi><mi>&zeta;</mi></mrow>
+        <msqrt><mrow><mn>1</mn><mo>-</mo><msup><mi>&zeta;</mi><mn>2</mn></msup></mrow></msqrt>
+      </mfrac>
+    </math>
+
+    <p class="formula-note">Здесь <code>t<sub>n</sub></code> — момент времени, в который достигается n-й амплитудный пик.</p>
+  </div>
+
+  <div class="block">
+    <h2>Источники</h2>
+    <ul>
+      <li><a href="https://www.pearson.com/en-us/subject-catalog/p/mechanical-vibrations/P200000003477/9780137686078" target="_blank" rel="noopener noreferrer">S. S. Rao — Mechanical Vibrations</a></li>
+      <li><a href="https://www.pearson.com/en-us/subject-catalog/p/theory-of-vibration-with-applications/P200000003392/9780136512828" target="_blank" rel="noopener noreferrer">W. T. Thomson, M. D. Dahleh, C. Padmanabhan — Theory of Vibration with Applications</a></li>
+      <li><a href="https://store.doverpublications.com/products/9780486647850" target="_blank" rel="noopener noreferrer">J. P. Den Hartog — Mechanical Vibrations</a></li>
+      <li><a href="https://www.pearson.com/en-us/subject-catalog/p/engineering-vibration/P200000003365/9780132871691" target="_blank" rel="noopener noreferrer">D. J. Inman — Engineering Vibration</a></li>
+      <li><a href="https://www.mheducation.com/highered/product/fundamentals-vibrations-meirovitch/M9781577667429.html" target="_blank" rel="noopener noreferrer">L. Meirovitch — Fundamentals of Vibrations</a></li>
+    </ul>
+  </div>
 </body>
 </html>
