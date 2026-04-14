@@ -367,11 +367,6 @@ def generate_plots_and_html():
   </div>
 
   <div class="block">
-    <h2>Декремент затухания по парам пиков (decrement_points*.txt)</h2>
-    {"<p>Файлы не найдены или пусты.</p>" if not dec_has_data else f'<img src="{dec_img_name}" alt="Decrement deltas">'}
-  </div>
-
-  <div class="block">
     <h2>Суммарная энергия (sumEnergyPoints.txt)</h2>
     {"<p>Файл не найден.</p>" if not energy_exists else f'<img src="{energy_img_name}" alt="Total energy">'}
   </div>
@@ -389,6 +384,11 @@ def generate_plots_and_html():
   <div class="block">
     <h2>Формулы расчёта декремента</h2>
     {formulas_html}
+  </div>
+
+  <div class="block">
+    <h2>Декремент затухания по парам пиков (decrement_points*.txt)</h2>
+    {"<p>Файлы не найдены или пусты.</p>" if not dec_has_data else f'<img src="{dec_img_name}" alt="Decrement deltas">'}
   </div>
 
   <div class="block">
