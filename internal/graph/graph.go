@@ -25,11 +25,13 @@ type ExtremaPoint struct {
 }
 
 type Graph struct {
-	NodesNum    int
-	Period      float64
-	FirstNodeID int
-	LastNodeID  int
-	Nodes       []*config.Node
+	NodesNum        int
+	Period          float64
+	FirstNodeID     int
+	LastNodeID      int
+	Nodes           []*config.Node
+	BackAeroKoef    float64
+	ForwardAeroKoef float64
 }
 
 func NewGraph() *Graph {
@@ -270,14 +272,14 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 		if edge.Periodic {
 			switch nodeID {
 			case g.FirstNodeID:
-				aeroKoef = -1.0
+				aeroKoef = g.BackAeroKoef
 			case g.LastNodeID:
-				aeroKoef = 1.0
+				aeroKoef = g.ForwardAeroKoef
 			default:
 				if nodeID > edge.TargetID {
-					aeroKoef = -1.0
+					aeroKoef = g.BackAeroKoef
 				} else {
-					aeroKoef = 1.0
+					aeroKoef = g.ForwardAeroKoef
 				}
 			}
 		} else {

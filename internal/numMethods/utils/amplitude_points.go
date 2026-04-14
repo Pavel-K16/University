@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	config "masters/internal/config"
+	inmemory "masters/internal/inMemory"
 	"os"
 )
 
@@ -15,7 +16,7 @@ const (
 // Логика поиска пиков совпадает с той, что используется в декременте затухания.
 // skipFirstMaxima - сколько первых пиков пропустить; в файл попадут именно те A_n,
 // которые затем используются в вычислении лог-декремента.
-func WriteAmplitudePointsFromGraphFiles(cnf *config.Graph, skipFirstMaxima int) error {
+func WriteAmplitudePointsFromGraphFiles(cnf *config.Graph, pointsStore *inmemory.PointsStore, skipFirstMaxima int) error {
 	if cnf == nil {
 		return fmt.Errorf("nil config")
 	}
@@ -25,25 +26,16 @@ func WriteAmplitudePointsFromGraphFiles(cnf *config.Graph, skipFirstMaxima int) 
 			continue
 		}
 
-		points, err := GetPointsFromFile(node.ID)
-		if err != nil {
-			return fmt.Errorf("read graph points for node %d: %w", node.ID, err)
-		}
-
 		xEq, ok := equilibriumForNodeFromConfig(cnf, node.ID)
 		if !ok {
 			// Если опорной пружины к фиксированному узлу нет, считаем равновесие как стартовое положение.
 			xEq = node.Position
 		}
-
-		adapted := make([]PointLike, 0, len(points))
-		for i := range points {
-			adapted = append(adapted, pointAdapter{
-				t: points[i].Time,
-				x: points[i].Position,
-			})
+		if pointsStore == nil {
+			return fmt.Errorf("points store is nil")
 		}
-		maxs := findAmplitudeMaxima(adapted, xEq)
+		nodePoints := pointsStore.GetPoints(node.ID)
+		maxs := findAmplitudeMaximaInMemory(nodePoints, xEq)
 		start := skipFirstMaxima
 		if start > len(maxs)-1 {
 			start = len(maxs)

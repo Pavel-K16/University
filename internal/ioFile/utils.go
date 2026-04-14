@@ -4,6 +4,7 @@ import (
 	"fmt"
 	equationsolver "masters/internal/equationSolver"
 	graph "masters/internal/graph"
+	inmemory "masters/internal/inMemory"
 	"masters/internal/logger"
 	"os"
 )
@@ -22,7 +23,7 @@ var (
 	log = logger.LoggerInit()
 )
 
-func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Graph, t0, T, dt float64) {
+func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore) {
 	graphPointsFiles := make([]*os.File, 0)
 
 	for _, node := range graph.Nodes {
@@ -76,6 +77,9 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Gr
 			// if t == t0 {
 			// 	log.Debugf("Force 4 node %d %f", idx, graph.NetForce(idx))
 			// }
+			if pointsStore != nil {
+				pointsStore.AddPoint(node.ID, inmemory.Point{T: t, X: node.Position})
+			}
 
 			fmt.Fprintf(file, "%.10f %.10f\n", t, node.Position)
 		}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	config "masters/internal/config"
+	inmemory "masters/internal/inMemory"
 )
 
 type maxPoint struct {
@@ -68,24 +69,33 @@ func equilibriumForNodeFromConfig(cnf *config.Graph, nodeID int) (float64, bool)
 // считает амплитуды A=|x-xEq|, находит локальные максимумы амплитуды и возвращает оценку логарифмического декремента.
 //
 // skipFirstMaxima — сколько первых максимумов амплитуды пропустить (обычно 2+).
-func findAmplitudeMaxima(points []PointLike, xEq float64) []maxPoint {
-	A := make([]float64, len(points))
-	for i := range points {
-		A[i] = math.Abs(points[i].PositionValue() - xEq)
+func findAmplitudeMaximaInMemory(points []inmemory.Point, xEq float64) []maxPoint {
+	if len(points) == 0 {
+		return nil
 	}
-
 	maxs := make([]maxPoint, 0)
 
-	// Левый край: добавляем только если сразу идём вниз (валидный стартовый максимум).
-	if len(A) >= 2 && A[0] > A[1] {
-		maxs = append(maxs, maxPoint{t: points[0].TimeValue(), a: A[0]})
+	amp := func(i int) float64 {
+		return math.Abs(points[i].X - xEq)
 	}
 
-	for i := 1; i < len(A)-1; i++ {
-		dL := A[i] - A[i-1]
-		dR := A[i+1] - A[i]
+	// Левый край: добавляем только если сразу идём вниз (валидный стартовый максимум).
+	if len(points) >= 2 {
+		a0 := amp(0)
+		a1 := amp(1)
+		if a0 > a1 {
+			maxs = append(maxs, maxPoint{t: points[0].T, a: a0})
+		}
+	}
+
+	for i := 1; i < len(points)-1; i++ {
+		aPrev := amp(i - 1)
+		aCurr := amp(i)
+		aNext := amp(i + 1)
+		dL := aCurr - aPrev
+		dR := aNext - aCurr
 		if dL > 0 && dR < 0 {
-			maxs = append(maxs, maxPoint{t: points[i].TimeValue(), a: A[i]})
+			maxs = append(maxs, maxPoint{t: points[i].T, a: aCurr})
 		}
 	}
 
@@ -94,19 +104,6 @@ func findAmplitudeMaxima(points []PointLike, xEq float64) []maxPoint {
 
 	return maxs
 }
-
-type PointLike interface {
-	TimeValue() float64
-	PositionValue() float64
-}
-
-type pointAdapter struct {
-	t float64
-	x float64
-}
-
-func (p pointAdapter) TimeValue() float64     { return p.t }
-func (p pointAdapter) PositionValue() float64 { return p.x }
 
 func writeDecrementPoints(nodeID int, maxs []maxPoint, skipFirstMaxima int) error {
 	path := fmt.Sprintf(decrementPointsFileTmpl, nodeID)
@@ -138,25 +135,8 @@ func writeDecrementPoints(nodeID int, maxs []maxPoint, skipFirstMaxima int) erro
 	return nil
 }
 
-func EstimateLogDecrementFromGraphPoints(nodeID int, xEq float64, skipFirstMaxima int) (delta float64, used int, err error) {
-	points, err := GetPointsFromFile(nodeID)
-	if err != nil {
-		return 0, 0, err
-	}
-	if len(points) < 3 {
-		return 0, 0, fmt.Errorf("not enough points: %d", len(points))
-	}
-
-	adapted := make([]PointLike, 0, len(points))
-	for i := range points {
-		adapted = append(adapted, pointAdapter{
-			t: points[i].Time,
-			x: points[i].Position,
-		})
-	}
-
-	maxs := findAmplitudeMaxima(adapted, xEq)
-
+func EstimateLogDecrementFromGraphPoints(points []inmemory.Point, xEq float64, skipFirstMaxima int) (delta float64, used int, err error) {
+	maxs := findAmplitudeMaximaInMemory(points, xEq)
 	if len(maxs) < 2 {
 		return 0, 0, fmt.Errorf("not enough amplitude maxima: maxs=%d (need >=2 oscillation peaks; increase T or reduce damping)", len(maxs))
 	}
@@ -192,7 +172,7 @@ func EstimateLogDecrementFromGraphPoints(nodeID int, xEq float64, skipFirstMaxim
 
 // PrintLogDecrementForAllNodes считает декремент затухания для всех подвижных узлов,
 // печатает краткую сводку в консоль и записывает детальные логи в файл.
-func PrintLogDecrementForAllNodes(cnf *config.Graph, skipFirstMaxima int) {
+func PrintLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.PointsStore, skipFirstMaxima int) {
 	if cnf == nil {
 		fmt.Printf("LogDecrement: nil config\n")
 		return
@@ -222,20 +202,16 @@ func PrintLogDecrementForAllNodes(cnf *config.Graph, skipFirstMaxima int) {
 		}
 		r.xEq = xEq
 
-		points, err := GetPointsFromFile(node.ID)
-		if err != nil {
-			r.err = fmt.Errorf("error reading graph_points: %w", err)
+		if pointsStore == nil {
+			r.err = fmt.Errorf("points store is nil")
 			results = append(results, r)
 			continue
 		}
+		nodePoints := pointsStore.GetPoints(node.ID)
+		maxs := findAmplitudeMaximaInMemory(nodePoints, xEq)
+		r.maxs = maxs
 
-		adapted := make([]PointLike, 0, len(points))
-		for i := range points {
-			adapted = append(adapted, pointAdapter{t: points[i].Time, x: points[i].Position})
-		}
-		r.maxs = findAmplitudeMaxima(adapted, xEq)
-
-		delta, used, err := EstimateLogDecrementFromGraphPoints(node.ID, xEq, skipFirstMaxima)
+		delta, used, err := EstimateLogDecrementFromGraphPoints(nodePoints, xEq, skipFirstMaxima)
 		if err != nil {
 			r.err = err
 			results = append(results, r)

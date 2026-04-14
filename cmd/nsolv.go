@@ -6,6 +6,7 @@ import (
 	config "masters/internal/config"
 	equationsolver "masters/internal/equationSolver"
 	g "masters/internal/graph"
+	inmemory "masters/internal/inMemory"
 	iofile "masters/internal/ioFile"
 	"masters/internal/logger"
 	"masters/internal/numMethods/utils"
@@ -24,10 +25,12 @@ func main() {
 	t0 := cnf.Times.T0
 	dt := cnf.Times.Dt
 
-	solveWithGraph(t0, T, dt)
+	pointsStore := inmemory.NewPointsStore()
+
+	solveWithGraph(t0, T, dt, pointsStore)
 }
 
-func solveWithGraph(t0, T, dt float64) {
+func solveWithGraph(t0, T, dt float64, pointsStore *inmemory.PointsStore) {
 	fmt.Println("\n=== Решение задачи о метрономах через графовую систему ===")
 	fmt.Printf("Начальные условия: t=0\n")
 	fmt.Printf("Диапазон расчёта: t=[%.2f, %.2f], dt=%.4f\n", t0, T, dt)
@@ -40,11 +43,14 @@ func solveWithGraph(t0, T, dt float64) {
 
 	setAeroParams(graph)
 
+	graph.BackAeroKoef = -1.0
+	graph.ForwardAeroKoef = 1.0
+
 	solver := equationsolver.NewGraphSolver(graph, dt)
 
-	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt)
+	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt, pointsStore)
 	ampSkipFirst := 0
-	if err := utils.WriteAmplitudePointsFromGraphFiles(config.GetConfig(), ampSkipFirst); err != nil {
+	if err := utils.WriteAmplitudePointsFromGraphFiles(config.GetConfig(), pointsStore, ampSkipFirst); err != nil {
 		log.Errorf("Error writing amplitude points: %v", err)
 	}
 
@@ -54,11 +60,11 @@ func solveWithGraph(t0, T, dt float64) {
 	if configName == "" {
 		configName = "conf"
 	}
-	
+
 	if configName == "conf" {
 		// В лог-де-кременте пропускаем первые пики, чтобы уйти от переходного процесса.
 		skipFirst := 2
-		utils.PrintLogDecrementForAllNodes(config.GetConfig(), skipFirst)
+		utils.PrintLogDecrementForAllNodes(config.GetConfig(), pointsStore, skipFirst)
 	}
 }
 
