@@ -108,6 +108,7 @@ def generate_plots_and_html():
     amp_img_name = "amplitudes.png"
     energy_img_name = "sum_energy.png"
     dsum_energy_img_name = "dsum_energy.png"
+    dec_img_name = "decrement_deltas.png"
 
     if graph_files:
         plt.figure(figsize=(10, 6))
@@ -166,6 +167,39 @@ def generate_plots_and_html():
         plt.close()
     else:
         print(f"Файлы amplitude_points*.txt не найдены в {data_dir}")
+
+    # ---------- Декремент затухания по пикам decrement_points*.txt ----------
+    dec_files = []
+    for node_id in [0, 1, 2, 3, 4]:
+        path = data_dir / f"decrement_points{node_id}.txt"
+        if path.exists():
+            dec_files.append(path)
+
+    dec_has_data = False
+    if dec_files:
+        plt.figure(figsize=(10, 6))
+        colors = plt.cm.tab10.colors
+
+        for idx, path in enumerate(dec_files):
+            t, d = load_two_column_txt(path)
+            if t.size == 0:
+                continue
+            dec_has_data = True
+            label = path.stem  # например, 'decrement_points0'
+            plt.plot(t, d, marker="o", linestyle="-", label=label, color=colors[idx % len(colors)])
+
+        plt.xlabel("t")
+        plt.ylabel("delta_n")
+        plt.title("Logarithmic decrement per peak pair")
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+
+        out_dec = plots_dir / dec_img_name
+        plt.savefig(out_dec, dpi=200)
+        plt.close()
+    else:
+        print(f"Файлы decrement_points*.txt не найдены в {data_dir}")
 
     # ---------- Суммарная энергия sumEnergyPoints.txt ----------
     energy_path = data_dir / "sumEnergyPoints.txt"
@@ -330,6 +364,11 @@ def generate_plots_and_html():
   <div class="block">
     <h2>Амплитуды узлов (amplitude_points*.txt)</h2>
     {"<p>Файлы не найдены.</p>" if not amp_files else f'<img src="{amp_img_name}" alt="Amplitudes">'}
+  </div>
+
+  <div class="block">
+    <h2>Декремент затухания по парам пиков (decrement_points*.txt)</h2>
+    {"<p>Файлы не найдены или пусты.</p>" if not dec_has_data else f'<img src="{dec_img_name}" alt="Decrement deltas">'}
   </div>
 
   <div class="block">

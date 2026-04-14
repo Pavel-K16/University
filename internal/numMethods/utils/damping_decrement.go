@@ -16,6 +16,7 @@ type maxPoint struct {
 
 const (
 	decrementDetailsLogPath = "../wolfram/paramsAndPoints/decrement_details.log"
+	decrementPointsFileTmpl = "../wolfram/paramsAndPoints/decrement_points%d.txt"
 )
 
 // equilibriumForNodeFromConfig вычисляет равновесное положение xEq для nodeID,
@@ -106,6 +107,36 @@ type pointAdapter struct {
 
 func (p pointAdapter) TimeValue() float64     { return p.t }
 func (p pointAdapter) PositionValue() float64 { return p.x }
+
+func writeDecrementPoints(nodeID int, maxs []maxPoint, skipFirstMaxima int) error {
+	path := fmt.Sprintf(decrementPointsFileTmpl, nodeID)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	start := skipFirstMaxima
+	if start > len(maxs)-2 {
+		start = len(maxs) - 2
+	}
+	if start < 0 {
+		return nil
+	}
+
+	for i := start; i < len(maxs)-1; i++ {
+		a1 := maxs[i].a
+		a2 := maxs[i+1].a
+		if a1 <= 0 || a2 <= 0 {
+			continue
+		}
+		delta := math.Log(a1 / a2)
+		// Время привязываем к правому пику пары (t_{n+1})
+		fmt.Fprintf(f, "%.10f %.10f\n", maxs[i+1].t, delta)
+	}
+
+	return nil
+}
 
 func EstimateLogDecrementFromGraphPoints(nodeID int, xEq float64, skipFirstMaxima int) (delta float64, used int, err error) {
 	points, err := GetPointsFromFile(nodeID)
@@ -212,6 +243,9 @@ func PrintLogDecrementForAllNodes(cnf *config.Graph, skipFirstMaxima int) {
 		}
 		r.delta = delta
 		r.used = used
+		if err := writeDecrementPoints(node.ID, r.maxs, skipFirstMaxima); err != nil {
+			r.err = fmt.Errorf("write decrement points: %w", err)
+		}
 		results = append(results, r)
 	}
 

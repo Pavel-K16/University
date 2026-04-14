@@ -54,6 +54,7 @@ func solveWithGraph(t0, T, dt float64) {
 	if configName == "" {
 		configName = "conf"
 	}
+	
 	if configName == "conf" {
 		// В лог-де-кременте пропускаем первые пики, чтобы уйти от переходного процесса.
 		skipFirst := 2
