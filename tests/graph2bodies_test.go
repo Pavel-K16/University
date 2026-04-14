@@ -138,7 +138,7 @@ func Test2BodiesMatchesWolframGraphPoints(t *testing.T) {
 		t.Fatalf("reference series length mismatch: ref0=%d, ref1=%d", len(ref0.T), len(ref1.T))
 	}
 
-	// Load config for this test explicitly from testdata (do not rely on CONFIG/cwd or cached gConfig).
+	// Load config for this test explicitly from testdata (do not rely on CONFIG/cwd).
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("read config fixture: %v", err)

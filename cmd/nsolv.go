@@ -18,7 +18,11 @@ var (
 )
 
 func main() {
-	cnf := config.GetConfig()
+	cnf, err := config.ReadGraphConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config: %v\n", err)
+		os.Exit(1)
+	}
 	aero.AeroEnabled = cnf.Aero.Enabled
 
 	T := cnf.Times.T
@@ -27,21 +31,24 @@ func main() {
 
 	pointsStore := inmemory.NewPointsStore()
 
-	solveWithGraph(t0, T, dt, pointsStore)
+	solveWithGraph(cnf, t0, T, dt, pointsStore)
 }
 
-func solveWithGraph(t0, T, dt float64, pointsStore *inmemory.PointsStore) {
+func solveWithGraph(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore) {
 	fmt.Println("\n=== Решение задачи о метрономах через графовую систему ===")
 	fmt.Printf("Начальные условия: t=0\n")
 	fmt.Printf("Диапазон расчёта: t=[%.2f, %.2f], dt=%.4f\n", t0, T, dt)
 
 	graph := g.NewGraph()
 
-	g.CreateGraph(graph)
+	if err := g.CreateGraph(graph, cnf); err != nil {
+		log.Errorf("CreateGraph: %v", err)
+		return
+	}
 
 	graph.PrintGraph()
 
-	setAeroParams(graph)
+	setAeroParams(cnf, graph)
 
 	graph.BackAeroKoef = -1.0
 	graph.ForwardAeroKoef = 1.0
@@ -50,7 +57,7 @@ func solveWithGraph(t0, T, dt float64, pointsStore *inmemory.PointsStore) {
 
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt, pointsStore)
 	ampSkipFirst := 0
-	if err := utils.WriteAmplitudePointsFromGraphFiles(config.GetConfig(), pointsStore, ampSkipFirst); err != nil {
+	if err := utils.WriteAmplitudePointsFromGraphFiles(cnf, pointsStore, ampSkipFirst); err != nil {
 		log.Errorf("Error writing amplitude points: %v", err)
 	}
 
@@ -64,13 +71,12 @@ func solveWithGraph(t0, T, dt float64, pointsStore *inmemory.PointsStore) {
 	if configName == "conf" {
 		// В лог-де-кременте пропускаем первые пики, чтобы уйти от переходного процесса.
 		skipFirst := 2
-		utils.PrintLogDecrementForAllNodes(config.GetConfig(), pointsStore, skipFirst)
+		utils.PrintLogDecrementForAllNodes(cnf, pointsStore, skipFirst)
 	}
 }
 
-func setAeroParams(graph *g.Graph) {
+func setAeroParams(cnf *config.Graph, graph *g.Graph) {
 	if aero.AeroEnabled {
-		cnf := config.GetConfig()
 		aero.InitInfluenceKoefMatrix(graph.NodesNumbers())
 		aero.Scale = cnf.Aero.Scale
 

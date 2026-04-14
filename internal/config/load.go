@@ -58,12 +58,6 @@ const (
 	coupledParamsFilePath = "../wolfram/paramsAndPoints/coupledParams.txt"
 )
 
-var gConfig *Graph
-
-func GetGConfig() *Graph {
-	return gConfig
-}
-
 func ConfigPath() string {
 	name := os.Getenv("CONFIG")
 	if name == "" {
@@ -76,35 +70,29 @@ var (
 	log = logger.LoggerInit()
 )
 
-func LoadGraphConfig() error {
+// ReadGraphConfig читает JSON по пути ConfigPath(), возвращает новый *Graph.
+// У каждого вызова — свой экземпляр узлов в памяти; это безопасно для параллельных
+// прогонов, если каждая горутина вызывает ReadGraphConfig() отдельно (или иначе
+// имеет свою копию конфигурации).
+func ReadGraphConfig() (*Graph, error) {
 	path := ConfigPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("read config %s: %w", path, err)
 	}
-
-	var cfg Graph
-
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return err
-	}
-
-	gConfig = &cfg
-
-	name := os.Getenv("CONFIG")
-	if name == "2Bodies" {
-		Write2BodiesParamsToTxt(&cfg)
-	}
-
-	return nil
+	return ParseGraphConfig(data)
 }
 
-func GetConfig() *Graph {
-	if gConfig == nil {
-		LoadGraphConfig()
+// ParseGraphConfig разбирает JSON графа без чтения файла (удобно для тестов).
+func ParseGraphConfig(data []byte) (*Graph, error) {
+	var cfg Graph
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("unmarshal graph config: %w", err)
 	}
-
-	return gConfig
+	if os.Getenv("CONFIG") == "2Bodies" {
+		Write2BodiesParamsToTxt(&cfg)
+	}
+	return &cfg, nil
 }
 
 type nodeOwnParams struct {

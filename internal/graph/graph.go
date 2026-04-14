@@ -53,16 +53,9 @@ func (g *Graph) NodesNumbers() []int {
 	return numbers
 }
 
-func CreateGraph(graph *Graph) error {
-	cnf := config.GetGConfig()
-
+func CreateGraph(graph *Graph, cnf *config.Graph) error {
 	if cnf == nil {
-		log.Warningf("Got empty config")
-		if err := config.LoadGraphConfig(); err != nil {
-			log.Errorf("Error Load Config: %s", err)
-			return err
-		}
-		cnf = config.GetGConfig()
+		return fmt.Errorf("nil config graph")
 	}
 
 	// cnf.LastFirstDist
