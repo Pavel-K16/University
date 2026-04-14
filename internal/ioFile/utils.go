@@ -13,6 +13,7 @@ var (
 	kineticEnergyFilePath   = "../wolfram/paramsAndPoints/kineticEnergyPoints.txt"
 	potentialEnergyFilePath = "../wolfram/paramsAndPoints/potentialEnergyPoints.txt"
 	sumEnergyFilePath       = "../wolfram/paramsAndPoints/sumEnergyPoints.txt"
+	dSumEnergyFilePath      = "../wolfram/paramsAndPoints/dSumEnergyPoints.txt"
 )
 
 var KineticEnergy, PotentialEnergy []float64
@@ -33,8 +34,10 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Gr
 	kineticEnergyFile, _ := os.OpenFile(kineticEnergyFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	potentialEnergyFile, _ := os.OpenFile(potentialEnergyFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	sumEnergyFile, _ := os.OpenFile(sumEnergyFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	dSumEnergyFile, _ := os.OpenFile(dSumEnergyFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 
 	defer sumEnergyFile.Close()
+	defer dSumEnergyFile.Close()
 	defer kineticEnergyFile.Close()
 	defer potentialEnergyFile.Close()
 
@@ -47,6 +50,9 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Gr
 	}
 
 	fmt.Printf("Запускаем расчёт от t=%.2f до t=%.2f\n", t0, T)
+
+	var prevSumEnergy float64
+	hasPrev := false
 
 	for t := t0; t <= T; t += dt {
 		// if t == t0 {
@@ -78,7 +84,18 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Gr
 		fmt.Fprintf(kineticEnergyFile, "%.10f %.10f\n", t, kineticEnergy)
 		potentialEnergy := graph.TotalPotentialEnergy()
 		fmt.Fprintf(potentialEnergyFile, "%.10f %.10f\n", t, potentialEnergy)
-		fmt.Fprintf(sumEnergyFile, "%.10f %.10f\n", t, kineticEnergy+potentialEnergy)
+		sumEnergy := kineticEnergy + potentialEnergy
+		fmt.Fprintf(sumEnergyFile, "%.10f %.10f\n", t, sumEnergy)
+
+		// Численная производная полной энергии (равномерный шаг):
+		// dE/dt ~ (E_i - E_{i-1}) / dt (назад направленная разность).
+		dEdt := 0.0
+		if hasPrev && dt > 0 {
+			dEdt = (sumEnergy - prevSumEnergy) / dt
+		}
+		fmt.Fprintf(dSumEnergyFile, "%.10f %.10f\n", t, dEdt)
+		prevSumEnergy = sumEnergy
+		hasPrev = true
 	}
 }
 

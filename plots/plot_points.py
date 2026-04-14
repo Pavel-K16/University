@@ -107,6 +107,7 @@ def generate_plots_and_html():
     traj_img_name = "trajectories.png"
     amp_img_name = "amplitudes.png"
     energy_img_name = "sum_energy.png"
+    dsum_energy_img_name = "dsum_energy.png"
 
     if graph_files:
         plt.figure(figsize=(10, 6))
@@ -187,6 +188,28 @@ def generate_plots_and_html():
         plt.close()
     else:
         print(f"Файл с энергией не найден: {energy_path}")
+
+    # ---------- Производная полной энергии dSumEnergyPoints.txt ----------
+    dsum_energy_path = data_dir / "dSumEnergyPoints.txt"
+    dsum_energy_exists = dsum_energy_path.exists()
+
+    if dsum_energy_exists:
+        tdE, dE = load_two_column_txt(dsum_energy_path)
+
+        plt.figure(figsize=(10, 4))
+        plt.plot(tdE, dE, label="d/dt (K+U)")
+        plt.xlabel("t")
+        plt.ylabel("dE/dt")
+        plt.title("Derivative of total energy")
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+
+        out_dsum_energy = plots_dir / dsum_energy_img_name
+        plt.savefig(out_dsum_energy, dpi=200)
+        plt.close()
+    else:
+        print(f"Файл с производной полной энергии не найден: {dsum_energy_path}")
 
     # ---------- Генерация HTML ----------
     html_path = plots_dir / "index.html"
@@ -312,6 +335,11 @@ def generate_plots_and_html():
   <div class="block">
     <h2>Суммарная энергия (sumEnergyPoints.txt)</h2>
     {"<p>Файл не найден.</p>" if not energy_exists else f'<img src="{energy_img_name}" alt="Total energy">'}
+  </div>
+
+  <div class="block">
+    <h2>Производная полной энергии (dSumEnergyPoints.txt)</h2>
+    {"<p>Файл не найден.</p>" if not dsum_energy_exists else f'<img src="{dsum_energy_img_name}" alt="dE/dt">'}
   </div>
 
   <div class="block">
