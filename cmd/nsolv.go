@@ -10,31 +10,66 @@ import (
 	iofile "masters/internal/ioFile"
 	"masters/internal/logger"
 	"masters/internal/numMethods/utils"
+	"math"
 	"os"
+	"time"
 )
 
 var (
 	log = logger.LoggerInit() // Logger for debugging
 )
 
+const (
+	minKoef = -2.0
+	maxKoef = 2.0
+	step    = 0.1
+)
+
 func main() {
-	cnf, err := config.ReadGraphConfig()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "config: %v\n", err)
-		os.Exit(1)
+	start := time.Now()
+
+	nSteps := int(math.Round((maxKoef - minKoef) / step))
+
+	decrementStore := inmemory.NewDecrementStore()
+
+	for i := 0; i <= nSteps; i++ {
+
+		f := minKoef + float64(i)*step
+		f = math.Round(f*1e10) / 1e10
+
+		for j := 0; j <= nSteps; j++ {
+
+			b := minKoef + float64(j)*step
+			b = math.Round(b*1e10) / 1e10
+
+			cnf, err := config.ReadGraphConfig()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "config: %v\n", err)
+				os.Exit(1)
+			}
+
+			aero.AeroEnabled = cnf.Aero.Enabled
+
+			T := cnf.Times.T
+			t0 := cnf.Times.T0
+			dt := cnf.Times.Dt
+
+			pointsStore := inmemory.NewPointsStore()
+
+			solveWithGraph(cnf, t0, T, dt, pointsStore, decrementStore, f, b)
+		}
 	}
-	aero.AeroEnabled = cnf.Aero.Enabled
 
-	T := cnf.Times.T
-	t0 := cnf.Times.T0
-	dt := cnf.Times.Dt
+	if err := decrementStore.WriteDecrStoreToFiles(); err != nil {
+		log.Errorf("Error writing decrement store to files: %v", err)
+	} else {
+		log.Info("Decrement store written to files")
+	}
 
-	pointsStore := inmemory.NewPointsStore()
-
-	solveWithGraph(cnf, t0, T, dt, pointsStore)
+	log.Infof("Time taken: %v", time.Since(start))
 }
 
-func solveWithGraph(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore) {
+func solveWithGraph(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, decrementStore *inmemory.DecrementStore, f, b float64) {
 	fmt.Println("\n=== Решение задачи о метрономах через графовую систему ===")
 	fmt.Printf("Начальные условия: t=0\n")
 	fmt.Printf("Диапазон расчёта: t=[%.2f, %.2f], dt=%.4f\n", t0, T, dt)
@@ -50,8 +85,8 @@ func solveWithGraph(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.
 
 	setAeroParams(cnf, graph)
 
-	graph.BackAeroKoef = -1.0
-	graph.ForwardAeroKoef = 1.0
+	graph.BackAeroKoef = b
+	graph.ForwardAeroKoef = f
 
 	solver := equationsolver.NewGraphSolver(graph, dt)
 
@@ -68,11 +103,8 @@ func solveWithGraph(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.
 		configName = "conf"
 	}
 
-	if configName == "conf" {
-		// В лог-де-кременте пропускаем первые пики, чтобы уйти от переходного процесса.
-		skipFirst := 2
-		utils.PrintLogDecrementForAllNodes(cnf, pointsStore, skipFirst)
-	}
+	skipFirst := 2
+	utils.PrintLogDecrementForAllNodes(cnf, pointsStore, skipFirst, decrementStore, f, b)
 }
 
 func setAeroParams(cnf *config.Graph, graph *g.Graph) {

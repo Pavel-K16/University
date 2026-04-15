@@ -172,7 +172,7 @@ func EstimateLogDecrementFromGraphPoints(points []inmemory.Point, xEq float64, s
 
 // PrintLogDecrementForAllNodes считает декремент затухания для всех подвижных узлов,
 // печатает краткую сводку в консоль и записывает детальные логи в файл.
-func PrintLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.PointsStore, skipFirstMaxima int) {
+func PrintLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.PointsStore, skipFirstMaxima int, decrementStore *inmemory.DecrementStore, f, b float64) {
 	if cnf == nil {
 		fmt.Printf("LogDecrement: nil config\n")
 		return
@@ -223,6 +223,8 @@ func PrintLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.Point
 			r.err = fmt.Errorf("write decrement points: %w", err)
 		}
 		results = append(results, r)
+
+		decrementStore.AddDecrement(node.ID, f, b, delta)
 	}
 
 	// Краткая человекочитаемая сводка в процентах (до 2 знаков) перед детальными логами.

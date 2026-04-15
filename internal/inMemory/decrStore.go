@@ -1,5 +1,14 @@
 package inmemory
 
+import (
+	"fmt"
+	"os"
+)
+
+const (
+	decrementStoreFileTmpl = "../wolfram/paramsAndPoints/decrementStore%d.txt"
+)
+
 type DecrementStore struct {
 	decrements map[int][]DecrAeroKoefStore
 }
@@ -20,4 +29,27 @@ func (s *DecrementStore) AddDecrement(nodeID int, koef1, koef2 float64, decremen
 
 func (s *DecrementStore) GetDecrements(nodeID int) []DecrAeroKoefStore {
 	return s.decrements[nodeID]
+}
+
+func (s *DecrementStore) WriteDecrStoreToFiles() error {
+	for nodeID, decrements := range s.decrements {
+		path := fmt.Sprintf(decrementStoreFileTmpl, nodeID)
+
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
+		if err != nil {
+			return fmt.Errorf("open decrement file for node %d: %w", nodeID, err)
+		}
+
+		for _, d := range decrements {
+			if _, err := fmt.Fprintf(f, "%f %f %f\n", d.koef1, d.koef2, d.decrement); err != nil {
+				_ = f.Close()
+				return fmt.Errorf("write decrement for node %d: %w", nodeID, err)
+			}
+		}
+
+		if err := f.Close(); err != nil {
+			return fmt.Errorf("close decrement file for node %d: %w", nodeID, err)
+		}
+	}
+	return nil
 }
