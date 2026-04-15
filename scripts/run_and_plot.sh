@@ -1,5 +1,6 @@
 #!/bin/bash
 
+start_ts=$(date +%s)
 # Если передан аргумент — имя конфига (без .json),
 # прокидываем его в переменную окружения CONFIG,
 # чтобы и Go-программа, и Python-скрипт строили всё по одному и тому же конфигу.
@@ -14,3 +15,6 @@ fi
 python3 ../plots/plot_points.py
 
 # xdg-open ../plots/index.html
+end_ts=$(date +%s)
+
+echo "Overall time taken: $((end_ts - start_ts)) seconds"
