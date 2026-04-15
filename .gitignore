@@ -40,6 +40,10 @@ debug.test
 # Кэш Go
 go.work
 
+# Кэш Python
+__pycache__/
+*.pyc
+
 # Wolfram
 wolfram/
 
