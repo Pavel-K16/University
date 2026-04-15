@@ -36,6 +36,21 @@ def load_two_column_txt(path: Path):
     return data[:, 0], data[:, 1]
 
 
+def load_three_column_txt(path: Path):
+    """
+    Ожидается файл с тремя столбцами: x, y, value.
+    Возвращает (x, y, v) как numpy-массивы.
+    """
+    if path.stat().st_size == 0:
+        return np.array([]), np.array([]), np.array([])
+    data = np.loadtxt(path)
+    if np.size(data) == 0:
+        return np.array([]), np.array([]), np.array([])
+    if data.ndim == 1:
+        data = data[None, :]
+    return data[:, 0], data[:, 1], data[:, 2]
+
+
 def get_node_ids_from_config(root_dir: Path) -> list[int]:
     """
     Читает активный конфиг (CONFIG или conf.json) и возвращает id узлов,
@@ -109,6 +124,7 @@ def generate_plots_and_html():
     energy_img_name = "sum_energy.png"
     dsum_energy_img_name = "dsum_energy.png"
     dec_img_name = "decrement_deltas.png"
+    decr_map_imgs = []
 
     if graph_files:
         plt.figure(figsize=(10, 6))
@@ -200,6 +216,50 @@ def generate_plots_and_html():
         plt.close()
     else:
         print(f"Файлы decrement_points*.txt не найдены в {data_dir}")
+
+    # ---------- Карты декремента по аэрокоэффициентам decrementStore*.txt ----------
+    decr_store_files = sorted(data_dir.glob("decrementStore*.txt"))
+    decr_store_has_data = False
+
+    for path in decr_store_files:
+        bx, fy, delta = load_three_column_txt(path)
+        if bx.size == 0:
+            continue
+
+        decr_store_has_data = True
+        # decrementStore{nodeID}.txt -> nodeID
+        node_id = path.stem.replace("decrementStore", "")
+        img_name = f"decrement_map_node{node_id}.png"
+
+        plt.figure(figsize=(8, 6))
+        sc = plt.scatter(
+            bx,
+            fy,
+            c=delta,
+            cmap="viridis",
+            s=80,
+            edgecolors="k",
+            linewidths=0.25,
+        )
+        plt.xlabel("koef1 (forward)")
+        plt.ylabel("koef2 (back)")
+        plt.title(f"Mean decrement map for node {node_id}")
+        plt.grid(True, alpha=0.25)
+        plt.gca().set_aspect("equal", adjustable="box")
+        cbar = plt.colorbar(sc)
+        cbar.set_label("delta")
+        plt.tight_layout()
+
+        out_map = plots_dir / img_name
+        plt.savefig(out_map, dpi=200)
+        plt.close()
+
+        decr_map_imgs.append((node_id, img_name))
+
+    if decr_store_files and not decr_store_has_data:
+        print(f"Файлы decrementStore*.txt найдены, но пустые: {data_dir}")
+    elif not decr_store_files:
+        print(f"Файлы decrementStore*.txt не найдены в {data_dir}")
 
     # ---------- Суммарная энергия sumEnergyPoints.txt ----------
     energy_path = data_dir / "sumEnergyPoints.txt"
@@ -389,6 +449,11 @@ def generate_plots_and_html():
   <div class="block">
     <h2>Декремент затухания по парам пиков (decrement_points*.txt)</h2>
     {"<p>Файлы не найдены или пусты.</p>" if not dec_has_data else f'<img src="{dec_img_name}" alt="Decrement deltas">'}
+  </div>
+
+  <div class="block">
+    <h2>Карты декремента по аэрокоэффициентам (decrementStore*.txt)</h2>
+    {"<p>Файлы не найдены или пусты.</p>" if not decr_map_imgs else "".join(f'<h3>Узел {html_lib.escape(node_id)}</h3><img src="{html_lib.escape(img_name)}" alt="Decrement map node {html_lib.escape(node_id)}"><br><br>' for node_id, img_name in decr_map_imgs)}
   </div>
 
   <div class="block">
