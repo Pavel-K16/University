@@ -12,6 +12,7 @@ import (
 	"masters/internal/numMethods/utils"
 	"math"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -20,9 +21,10 @@ var (
 )
 
 const (
-	minKoef = -2.0
-	maxKoef = 2.0
-	step    = 0.1
+	minKoef  = -2.0
+	maxKoef  = 2.0
+	step     = 0.1
+	parallel = true
 )
 
 func main() {
@@ -31,33 +33,62 @@ func main() {
 	nSteps := int(math.Round((maxKoef - minKoef) / step))
 
 	decrementStore := inmemory.NewDecrementStore()
+	if parallel {
+		wg := sync.WaitGroup{}
 
-	for i := 0; i <= nSteps; i++ {
+		for i := 0; i <= nSteps; i++ {
 
-		f := minKoef + float64(i)*step
-		f = math.Round(f*1e10) / 1e10
+			f := minKoef + float64(i)*step
+			f = math.Round(f*1e10) / 1e10
 
-		for j := 0; j <= nSteps; j++ {
+			for j := 0; j <= nSteps; j++ {
 
-			b := minKoef + float64(j)*step
-			b = math.Round(b*1e10) / 1e10
+				b := minKoef + float64(j)*step
+				b = math.Round(b*1e10) / 1e10
 
-			cnf, err := config.ReadGraphConfig()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "config: %v\n", err)
-				os.Exit(1)
+				cnf, err := config.ReadGraphConfig()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "config: %v\n", err)
+					os.Exit(1)
+				}
+
+				aero.AeroEnabled = cnf.Aero.Enabled
+
+				T := cnf.Times.T
+				t0 := cnf.Times.T0
+				dt := cnf.Times.Dt
+
+				wg.Add(1)
+
+				go func(wg *sync.WaitGroup, cnf *config.Graph, t0, T, dt float64, decrementStore *inmemory.DecrementStore, f, b float64) {
+					defer wg.Done()
+
+					pointsStore := inmemory.NewPointsStore()
+
+					solveWithGraph(cnf, t0, T, dt, pointsStore, decrementStore, f, b)
+				}(&wg, cnf, t0, T, dt, decrementStore, f, b)
 			}
-
-			aero.AeroEnabled = cnf.Aero.Enabled
-
-			T := cnf.Times.T
-			t0 := cnf.Times.T0
-			dt := cnf.Times.Dt
-
-			pointsStore := inmemory.NewPointsStore()
-
-			solveWithGraph(cnf, t0, T, dt, pointsStore, decrementStore, f, b)
 		}
+
+		wg.Wait()
+	} else {
+		cnf, err := config.ReadGraphConfig()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "config: %v\n", err)
+			os.Exit(1)
+		}
+
+		aero.AeroEnabled = cnf.Aero.Enabled
+
+		T := cnf.Times.T
+		t0 := cnf.Times.T0
+		dt := cnf.Times.Dt
+
+		b := -1.0
+		f := 1.0
+
+		pointsStore := inmemory.NewPointsStore()
+		solveWithGraph(cnf, t0, T, dt, pointsStore, decrementStore, f, b)
 	}
 
 	if err := decrementStore.WriteDecrStoreToFiles(); err != nil {
@@ -81,7 +112,7 @@ func solveWithGraph(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.
 		return
 	}
 
-	graph.PrintGraph()
+	//graph.PrintGraph()
 
 	setAeroParams(cnf, graph)
 
@@ -109,7 +140,7 @@ func solveWithGraph(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.
 
 func setAeroParams(cnf *config.Graph, graph *g.Graph) {
 	if aero.AeroEnabled {
-		aero.InitInfluenceKoefMatrix(graph.NodesNumbers())
+		//aero.InitInfluenceKoefMatrix(graph.NodesNumbers())
 		aero.Scale = cnf.Aero.Scale
 
 		aero.SetFlowParameters(

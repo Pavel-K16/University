@@ -3,6 +3,7 @@ package inmemory
 import (
 	"fmt"
 	"os"
+	"sync"
 )
 
 const (
@@ -10,6 +11,7 @@ const (
 )
 
 type DecrementStore struct {
+	mu         sync.Mutex
 	decrements map[int][]DecrAeroKoefStore
 }
 
@@ -24,14 +26,20 @@ func NewDecrementStore() *DecrementStore {
 }
 
 func (s *DecrementStore) AddDecrement(nodeID int, koef1, koef2 float64, decrement float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.decrements[nodeID] = append(s.decrements[nodeID], DecrAeroKoefStore{koef1: koef1, koef2: koef2, decrement: decrement})
 }
 
 func (s *DecrementStore) GetDecrements(nodeID int) []DecrAeroKoefStore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.decrements[nodeID]
 }
 
 func (s *DecrementStore) WriteDecrStoreToFiles() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for nodeID, decrements := range s.decrements {
 		path := fmt.Sprintf(decrementStoreFileTmpl, nodeID)
 

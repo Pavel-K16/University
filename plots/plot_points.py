@@ -20,6 +20,8 @@ import html as html_lib
 import matplotlib.pyplot as plt
 import numpy as np
 
+PARALLEL_ONLY_DECREMENT_MAPS = True
+
 
 def load_two_column_txt(path: Path):
     """
@@ -126,7 +128,7 @@ def generate_plots_and_html():
     dec_img_name = "decrement_deltas.png"
     decr_map_imgs = []
 
-    if graph_files:
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and graph_files:
         plt.figure(figsize=(10, 6))
         colors = plt.cm.tab10.colors
 
@@ -147,19 +149,23 @@ def generate_plots_and_html():
         out_traj = plots_dir / traj_img_name
         plt.savefig(out_traj, dpi=200)
         plt.close()
-    else:
+    elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файлы graph_points*.txt не найдены в {data_dir}")
 
     # ---------- Амплитуды amplitude_points*.txt ----------
     # Берём именно готовые файлы амплитуд и просто отображаем точки с них.
-    # Шаблон: amplitude_points%d.txt
+    # Количество/набор узлов — из активного конфига (как для траекторий).
+    movable_node_ids = get_movable_node_ids_from_config(root_dir)
     amp_files = []
-    for node_id in [0, 1, 2, 3, 4]:
-        path = data_dir / f"amplitude_points{node_id}.txt"
-        if path.exists():
-            amp_files.append(path)
+    if movable_node_ids:
+        for node_id in movable_node_ids:
+            path = data_dir / f"amplitude_points{node_id}.txt"
+            if path.exists():
+                amp_files.append(path)
+    else:
+        amp_files = sorted(data_dir.glob("amplitude_points*.txt"))
 
-    if amp_files:
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and amp_files:
         plt.figure(figsize=(10, 6))
         colors = plt.cm.tab10.colors
 
@@ -181,18 +187,21 @@ def generate_plots_and_html():
         out_amp = plots_dir / amp_img_name
         plt.savefig(out_amp, dpi=200)
         plt.close()
-    else:
+    elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файлы amplitude_points*.txt не найдены в {data_dir}")
 
     # ---------- Декремент затухания по пикам decrement_points*.txt ----------
     dec_files = []
-    for node_id in [0, 1, 2, 3, 4]:
-        path = data_dir / f"decrement_points{node_id}.txt"
-        if path.exists():
-            dec_files.append(path)
+    if movable_node_ids:
+        for node_id in movable_node_ids:
+            path = data_dir / f"decrement_points{node_id}.txt"
+            if path.exists():
+                dec_files.append(path)
+    else:
+        dec_files = sorted(data_dir.glob("decrement_points*.txt"))
 
     dec_has_data = False
-    if dec_files:
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and dec_files:
         plt.figure(figsize=(10, 6))
         colors = plt.cm.tab10.colors
 
@@ -214,11 +223,19 @@ def generate_plots_and_html():
         out_dec = plots_dir / dec_img_name
         plt.savefig(out_dec, dpi=200)
         plt.close()
-    else:
+    elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файлы decrement_points*.txt не найдены в {data_dir}")
 
     # ---------- Карты декремента по аэрокоэффициентам decrementStore*.txt ----------
-    decr_store_files = sorted(data_dir.glob("decrementStore*.txt"))
+    # Количество карт также привязываем к активному конфигу.
+    decr_store_files = []
+    if movable_node_ids:
+        for node_id in movable_node_ids:
+            path = data_dir / f"decrementStore{node_id}.txt"
+            if path.exists():
+                decr_store_files.append(path)
+    else:
+        decr_store_files = sorted(data_dir.glob("decrementStore*.txt"))
     decr_store_has_data = False
 
     for path in decr_store_files:
@@ -265,7 +282,7 @@ def generate_plots_and_html():
     energy_path = data_dir / "sumEnergyPoints.txt"
     energy_exists = energy_path.exists()
 
-    if energy_exists:
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and energy_exists:
         tE, E = load_two_column_txt(energy_path)
 
         plt.figure(figsize=(10, 4))
@@ -280,14 +297,14 @@ def generate_plots_and_html():
         out_energy = plots_dir / energy_img_name
         plt.savefig(out_energy, dpi=200)
         plt.close()
-    else:
+    elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файл с энергией не найден: {energy_path}")
 
     # ---------- Производная полной энергии dSumEnergyPoints.txt ----------
     dsum_energy_path = data_dir / "dSumEnergyPoints.txt"
     dsum_energy_exists = dsum_energy_path.exists()
 
-    if dsum_energy_exists:
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and dsum_energy_exists:
         tdE, dE = load_two_column_txt(dsum_energy_path)
 
         plt.figure(figsize=(10, 4))
@@ -302,7 +319,7 @@ def generate_plots_and_html():
         out_dsum_energy = plots_dir / dsum_energy_img_name
         plt.savefig(out_dsum_energy, dpi=200)
         plt.close()
-    else:
+    elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файл с производной полной энергии не найден: {dsum_energy_path}")
 
     # ---------- Генерация HTML ----------
@@ -416,6 +433,7 @@ def generate_plots_and_html():
 <body>
   <h1>Графики из wolfram/paramsAndPoints</h1>
 
+  {"" if PARALLEL_ONLY_DECREMENT_MAPS else f'''
   <div class="block">
     <h2>Траектории узлов (graph_points*.txt)</h2>
     {"<p>Файлы не найдены.</p>" if not graph_files else f'<img src="{traj_img_name}" alt="Trajectories">'}
@@ -435,7 +453,9 @@ def generate_plots_and_html():
     <h2>Производная полной энергии (dSumEnergyPoints.txt)</h2>
     {"<p>Файл не найден.</p>" if not dsum_energy_exists else f'<img src="{dsum_energy_img_name}" alt="dE/dt">'}
   </div>
+  '''}
 
+  {"" if PARALLEL_ONLY_DECREMENT_MAPS else f'''
   <div class="block">
     <h2>Сводка декремента по узлам</h2>
     {node_summary_html}
@@ -450,12 +470,14 @@ def generate_plots_and_html():
     <h2>Декремент затухания по парам пиков (decrement_points*.txt)</h2>
     {"<p>Файлы не найдены или пусты.</p>" if not dec_has_data else f'<img src="{dec_img_name}" alt="Decrement deltas">'}
   </div>
+  '''}
 
   <div class="block">
     <h2>Карты декремента по аэрокоэффициентам (decrementStore*.txt)</h2>
     {"<p>Файлы не найдены или пусты.</p>" if not decr_map_imgs else "".join(f'<h3>Узел {html_lib.escape(node_id)}</h3><img src="{html_lib.escape(img_name)}" alt="Decrement map node {html_lib.escape(node_id)}"><br><br>' for node_id, img_name in decr_map_imgs)}
   </div>
 
+  {"" if PARALLEL_ONLY_DECREMENT_MAPS else f'''
   <div class="block">
     <h2>Логи расчёта декремента</h2>
     {logs_html}
@@ -530,6 +552,7 @@ def generate_plots_and_html():
 
     <p class="formula-note">Здесь <code>t<sub>n</sub></code> — момент времени, в который достигается n-й амплитудный пик.</p>
   </div>
+  '''}
 
   <div class="block">
     <h2>Источники</h2>
