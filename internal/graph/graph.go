@@ -94,7 +94,7 @@ func CreateGraph(graph *Graph, cnf *config.Graph) error {
 
 	graph.Period = period
 
-	log.Debugf("Period: %f", graph.Period)
+//	log.Debugf("Period: %f", graph.Period)
 
 	if num > 0 {
 		graph.FirstNodeID = graph.GetNode(0).ID

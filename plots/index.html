@@ -1,16 +1,66 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-export-dark="0">
 <head>
   <meta charset="UTF-8">
   <title>Графики траекторий и энергии</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("university_plots_theme");
+        if (t === "dark" || t === "light")
+          document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
   <style>
+    html {
+      color-scheme: light dark;
+    }
     body {
       font-family: sans-serif;
       margin: 20px;
+      padding-top: 48px;
       background: #fafafa;
+      color: #111;
+    }
+    html[data-theme="dark"] body {
+      background: #1a1a1e;
+      color: #e8e8ed;
     }
     h1, h2 {
       font-weight: 600;
+    }
+    html[data-theme="dark"] h1,
+    html[data-theme="dark"] h2 {
+      color: #f0f0f5;
+    }
+    .theme-bar {
+      position: fixed;
+      top: 12px;
+      right: 16px;
+      z-index: 1000;
+    }
+    #theme-toggle {
+      cursor: pointer;
+      padding: 8px 14px;
+      font-size: 0.95rem;
+      border-radius: 8px;
+      border: 1px solid #bbb;
+      background: #fff;
+      color: #222;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    }
+    html[data-theme="dark"] #theme-toggle {
+      border-color: #555;
+      background: #2d2d33;
+      color: #e8e8ed;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }
+    #theme-toggle:hover {
+      filter: brightness(0.97);
+    }
+    html[data-theme="dark"] #theme-toggle:hover {
+      filter: brightness(1.08);
     }
     img {
       max-width: 100%;
@@ -19,9 +69,53 @@
       background: #fff;
       padding: 4px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: filter 0.25s ease;
+    }
+    html[data-theme="dark"] img {
+      border-color: #444;
+      background: #121215;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+    }
+    /* Затемняем «белые» PNG только если они собраны без PLOT_DARK */
+    html[data-theme="dark"]:not([data-export-dark="1"]) img {
+      filter: brightness(0.68) contrast(1.14) saturate(0.45);
+    }
+    /* Чуть приглушаем уже тёмные PNG при переключателе */
+    html[data-theme="dark"][data-export-dark="1"] img {
+      filter: brightness(0.88) saturate(0.82);
     }
     .block {
       margin-bottom: 32px;
+    }
+    pre {
+      background: #fff;
+      border: 1px solid #ddd;
+      padding: 12px;
+      overflow-x: auto;
+      border-radius: 6px;
+    }
+    html[data-theme="dark"] pre {
+      background: #121215;
+      border-color: #444;
+      color: #ddd;
+    }
+    code {
+      background: #eee;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    html[data-theme="dark"] code {
+      background: #2d2d33;
+      color: #e0e0e8;
+    }
+    a {
+      color: #0b57d0;
+    }
+    html[data-theme="dark"] a {
+      color: #8ab4ff;
+    }
+    ul li {
+      margin-bottom: 0.35em;
     }
     .formula-block math {
       font-size: 1.55em;
@@ -31,13 +125,102 @@
       font-size: 1.08em;
       color: #202020;
     }
+    html[data-theme="dark"] .formula-note {
+      color: #c8c8d0;
+    }
   </style>
 </head>
 <body>
+  <div class="theme-bar">
+    <button type="button" id="theme-toggle" aria-label="Переключить тему оформления">Тёмная тема</button>
+  </div>
   <h1>Графики из wolfram/paramsAndPoints</h1>
 
   
+  <div class="block">
+    <h2>Траектории узлов (graph_points*.txt)</h2>
+    <img src="trajectories.png" alt="Trajectories">
+  </div>
 
+  <div class="block">
+    <h2>Амплитуды узлов (amplitude_points*.txt)</h2>
+    <img src="amplitudes.png" alt="Amplitudes">
+  </div>
+
+  <div class="block">
+    <h2>Суммарная энергия (sumEnergyPoints.txt)</h2>
+    <img src="sum_energy.png" alt="Total energy">
+  </div>
+
+  <div class="block">
+    <h2>Производная полной энергии (dSumEnergyPoints.txt)</h2>
+    <img src="dsum_energy.png" alt="dE/dt">
+  </div>
+  
+
+  
+  <div class="block">
+    <h2>Сводка декремента по узлам</h2>
+    <ul><li><code>Node 0: xEq=0.00000000, skipFirst=2, usedPairs=29, delta=0.07238953, decay=6.98%</code></li><li><code>Node 1: xEq=1.00000000, skipFirst=2, usedPairs=28, delta=0.06944732, decay=6.71%</code></li><li><code>Node 2: xEq=2.00000000, skipFirst=2, usedPairs=28, delta=0.06218598, decay=6.03%</code></li><li><code>Node 3: xEq=3.00000000, skipFirst=2, usedPairs=28, delta=0.05392302, decay=5.25%</code></li><li><code>Node 4: xEq=4.00000000, skipFirst=2, usedPairs=29, delta=0.06158345, decay=5.97%</code></li></ul>
+  </div>
+
+  <div class="block">
+    <h2>Формулы расчёта декремента</h2>
+    
+<div class="formula-block" style="line-height:1.8">
+  <p><b>Логарифмический декремент по соседним пикам:</b></p>
+  <math display="block">
+    <msub><mi>&delta;</mi><mi>n</mi></msub>
+    <mo>=</mo>
+    <mi>ln</mi>
+    <mfrac>
+      <msub><mi>A</mi><mi>n</mi></msub>
+      <msub><mi>A</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub>
+    </mfrac>
+  </math>
+
+  <p><b>Средний декремент по интервалу:</b></p>
+  <math display="block">
+    <mi>&delta;</mi>
+    <mo>=</mo>
+    <mfrac><mn>1</mn><mi>N</mi></mfrac>
+    <munderover>
+      <mo>&Sigma;</mo>
+      <mrow><mi>n</mi><mo>=</mo><mn>1</mn></mrow>
+      <mi>N</mi>
+    </munderover>
+    <msub><mi>&delta;</mi><mi>n</mi></msub>
+  </math>
+
+  <p><b>Связь с процентным уменьшением амплитуды за один пик-период:</b></p>
+  <math display="block">
+    <mi>decay</mi><mo>(</mo><mo>%</mo><mo>)</mo>
+    <mo>=</mo>
+    <mo>(</mo><mn>1</mn><mo>-</mo>
+    <msup><mi>e</mi><mrow><mo>-</mo><mi>&delta;</mi></mrow></msup>
+    <mo>)</mo>
+    <mo>&middot;</mo><mn>100</mn><mo>%</mo>
+  </math>
+
+  <p><b>Амплитуда пика:</b></p>
+  <math display="block">
+    <msub><mi>A</mi><mi>n</mi></msub>
+    <mo>=</mo>
+    <mo>|</mo>
+    <mi>x</mi><mo>(</mo><msub><mi>t</mi><mi>n</mi></msub><mo>)</mo>
+    <mo>-</mo>
+    <msub><mi>x</mi><mrow><mi>e</mi><mi>q</mi></mrow></msub>
+    <mo>|</mo>
+  </math>
+  <p class="formula-note"><b>Где</b> <code>t<sub>n</sub></code> — момент времени, в который достигается n-й амплитудный пик (локальный максимум амплитуды).</p>
+</div>
+
+  </div>
+
+  <div class="block">
+    <h2>Декремент затухания по парам пиков (decrement_points*.txt)</h2>
+    <img src="decrement_deltas.png" alt="Decrement deltas">
+  </div>
   
 
   <div class="block">
@@ -45,6 +228,234 @@
     <h3>Узел 0</h3><img src="decrement_map_node0.png" alt="Decrement map node 0"><br><br><h3>Узел 1</h3><img src="decrement_map_node1.png" alt="Decrement map node 1"><br><br><h3>Узел 2</h3><img src="decrement_map_node2.png" alt="Decrement map node 2"><br><br><h3>Узел 3</h3><img src="decrement_map_node3.png" alt="Decrement map node 3"><br><br><h3>Узел 4</h3><img src="decrement_map_node4.png" alt="Decrement map node 4"><br><br>
   </div>
 
+  
+  <div class="block">
+    <h2>Логи расчёта декремента</h2>
+    <pre>### Logarithmic decrement details (all nodes)
+Node 0: xEq=0.00000000, skipFirst=2, usedPairs=29, delta=0.07238953, decay=6.98%
+  A_2=0.14646658 (t=6.7000), A_3=0.12038668 (t=9.8000), delta=0.19608838
+  A_3=0.12038668 (t=9.8000), A_4=0.10491597 (t=13.0000), delta=0.13754914
+  A_4=0.10491597 (t=13.0000), A_5=0.09456596 (t=16.1000), delta=0.10386218
+  A_5=0.09456596 (t=16.1000), A_6=0.08703597 (t=19.3000), delta=0.08297615
+  A_6=0.08703597 (t=19.3000), A_7=0.08093262 (t=22.4000), delta=0.07270452
+  A_7=0.08093262 (t=22.4000), A_8=0.07584006 (t=25.6000), delta=0.06499022
+  A_8=0.07584006 (t=25.6000), A_9=0.07117221 (t=28.8000), delta=0.06352424
+  A_9=0.07117221 (t=28.8000), A_10=0.06685029 (t=31.9000), delta=0.06264680
+  A_10=0.06685029 (t=31.9000), A_11=0.06288785 (t=35.1000), delta=0.06110261
+  A_11=0.06288785 (t=35.1000), A_12=0.05910490 (t=38.3000), delta=0.06203920
+  A_12=0.05910490 (t=38.3000), A_13=0.05549571 (t=41.5000), delta=0.06300819
+  A_13=0.05549571 (t=41.5000), A_14=0.05217432 (t=44.6000), delta=0.06171529
+  A_14=0.05217432 (t=44.6000), A_15=0.04903151 (t=47.8000), delta=0.06212724
+  A_15=0.04903151 (t=47.8000), A_16=0.04603857 (t=51.0000), delta=0.06298354
+  A_16=0.04603857 (t=51.0000), A_17=0.04321598 (t=54.1000), delta=0.06326932
+  A_17=0.04321598 (t=54.1000), A_18=0.04062238 (t=57.3000), delta=0.06189112
+  A_18=0.04062238 (t=57.3000), A_19=0.03815503 (t=60.5000), delta=0.06266153
+  A_19=0.03815503 (t=60.5000), A_20=0.03581042 (t=63.7000), delta=0.06341865
+  A_20=0.03581042 (t=63.7000), A_21=0.03363511 (t=66.8000), delta=0.06266837
+  A_21=0.03363511 (t=66.8000), A_22=0.03160616 (t=70.0000), delta=0.06221865
+  A_22=0.03160616 (t=70.0000), A_23=0.02967752 (t=73.2000), delta=0.06296197
+  A_23=0.02967752 (t=73.2000), A_24=0.02784592 (t=76.4000), delta=0.06370354
+  A_24=0.02784592 (t=76.4000), A_25=0.02617263 (t=79.5000), delta=0.06197226
+  A_25=0.02617263 (t=79.5000), A_26=0.02458716 (t=82.7000), delta=0.06248993
+  A_26=0.02458716 (t=82.7000), A_27=0.02308063 (t=85.9000), delta=0.06323072
+  A_27=0.02308063 (t=85.9000), A_28=0.02166660 (t=89.0000), delta=0.06322164
+  A_28=0.02166660 (t=89.0000), A_29=0.02036375 (t=92.2000), delta=0.06201575
+  A_29=0.02036375 (t=92.2000), A_30=0.01912505 (t=95.4000), delta=0.06275724
+  A_30=0.01912505 (t=95.4000), A_31=0.01794840 (t=98.6000), delta=0.06349791
+
+Node 1: xEq=1.00000000, skipFirst=2, usedPairs=28, delta=0.06944732, decay=6.71%
+  A_2=0.12875206 (t=8.3000), A_3=0.11416845 (t=11.6000), delta=0.12021354
+  A_3=0.11416845 (t=11.6000), A_4=0.10252197 (t=14.8000), delta=0.10759787
+  A_4=0.10252197 (t=14.8000), A_5=0.09320360 (t=18.0000), delta=0.09529083
+  A_5=0.09320360 (t=18.0000), A_6=0.08560424 (t=21.2000), delta=0.08505155
+  A_6=0.08560424 (t=21.2000), A_7=0.07936719 (t=24.3000), delta=0.07564974
+  A_7=0.07936719 (t=24.3000), A_8=0.07396380 (t=27.5000), delta=0.07050925
+  A_8=0.07396380 (t=27.5000), A_9=0.06911843 (t=30.7000), delta=0.06775441
+  A_9=0.06911843 (t=30.7000), A_10=0.06471672 (t=33.8000), delta=0.06580181
+  A_10=0.06471672 (t=33.8000), A_11=0.06075414 (t=37.0000), delta=0.06318436
+  A_11=0.06075414 (t=37.0000), A_12=0.05702728 (t=40.2000), delta=0.06330547
+  A_12=0.05702728 (t=40.2000), A_13=0.05350610 (t=43.4000), delta=0.06373412
+  A_13=0.05350610 (t=43.4000), A_14=0.05026554 (t=46.5000), delta=0.06247593
+  A_14=0.05026554 (t=46.5000), A_15=0.04722984 (t=49.7000), delta=0.06229371
+  A_15=0.04722984 (t=49.7000), A_16=0.04434501 (t=52.9000), delta=0.06302579
+  A_16=0.04434501 (t=52.9000), A_17=0.04161249 (t=56.0000), delta=0.06359977
+  A_17=0.04161249 (t=56.0000), A_18=0.03911783 (t=59.2000), delta=0.06182208
+  A_18=0.03911783 (t=59.2000), A_19=0.03674503 (t=62.4000), delta=0.06257543
+  A_19=0.03674503 (t=62.4000), A_20=0.03449030 (t=65.6000), delta=0.06332491
+  A_20=0.03449030 (t=65.6000), A_21=0.03238710 (t=68.7000), delta=0.06291784
+  A_21=0.03238710 (t=68.7000), A_22=0.03043641 (t=71.9000), delta=0.06212043
+  A_22=0.03043641 (t=71.9000), A_23=0.02858195 (t=75.1000), delta=0.06286450
+  A_23=0.02858195 (t=75.1000), A_24=0.02682055 (t=78.3000), delta=0.06360681
+  A_24=0.02682055 (t=78.3000), A_25=0.02520262 (t=81.4000), delta=0.06222067
+  A_25=0.02520262 (t=81.4000), A_26=0.02367817 (t=84.6000), delta=0.06239420
+  A_26=0.02367817 (t=84.6000), A_27=0.02222945 (t=87.8000), delta=0.06313547
+  A_27=0.02222945 (t=87.8000), A_28=0.02086237 (t=90.9000), delta=0.06347122
+  A_28=0.02086237 (t=90.9000), A_29=0.01960974 (t=94.1000), delta=0.06192067
+  A_29=0.01960974 (t=94.1000), A_30=0.01841865 (t=97.3000), delta=0.06266245
+
+Node 2: xEq=2.00000000, skipFirst=2, usedPairs=28, delta=0.06218598, decay=6.03%
+  A_2=0.10118230 (t=10.2000), A_3=0.09777628 (t=13.4000), delta=0.03424185
+  A_3=0.09777628 (t=13.4000), A_4=0.09248274 (t=16.6000), delta=0.05566000
+  A_4=0.09248274 (t=16.6000), A_5=0.08679120 (t=19.8000), delta=0.06351675
+  A_5=0.08679120 (t=19.8000), A_6=0.08124295 (t=23.0000), delta=0.06606118
+  A_6=0.08124295 (t=23.0000), A_7=0.07601599 (t=26.2000), delta=0.06650036
+  A_7=0.07601599 (t=26.2000), A_8=0.07114283 (t=29.4000), delta=0.06625425
+  A_8=0.07114283 (t=29.4000), A_9=0.06660274 (t=32.6000), delta=0.06594377
+  A_9=0.06660274 (t=32.6000), A_10=0.06240112 (t=35.7000), delta=0.06516253
+  A_10=0.06240112 (t=35.7000), A_11=0.05857657 (t=38.9000), delta=0.06324834
+  A_11=0.05857657 (t=38.9000), A_12=0.05497300 (t=42.1000), delta=0.06349260
+  A_12=0.05497300 (t=42.1000), A_13=0.05156945 (t=45.3000), delta=0.06391284
+  A_13=0.05156945 (t=45.3000), A_14=0.04842469 (t=48.4000), delta=0.06291951
+  A_14=0.04842469 (t=48.4000), A_15=0.04549645 (t=51.6000), delta=0.06237550
+  A_15=0.04549645 (t=51.6000), A_16=0.04271652 (t=54.8000), delta=0.06304864
+  A_16=0.04271652 (t=54.8000), A_17=0.04007823 (t=58.0000), delta=0.06375238
+  A_17=0.04007823 (t=58.0000), A_18=0.03767084 (t=61.1000), delta=0.06194709
+  A_18=0.03767084 (t=61.1000), A_19=0.03538819 (t=64.3000), delta=0.06250805
+  A_19=0.03538819 (t=64.3000), A_20=0.03321935 (t=67.5000), delta=0.06324558
+  A_20=0.03321935 (t=67.5000), A_21=0.03118557 (t=70.6000), delta=0.06317700
+  A_21=0.03118557 (t=70.6000), A_22=0.02930992 (t=73.8000), delta=0.06202946
+  A_22=0.02930992 (t=73.8000), A_23=0.02752665 (t=77.0000), delta=0.06277158
+  A_23=0.02752665 (t=77.0000), A_24=0.02583272 (t=80.2000), delta=0.06351284
+  A_24=0.02583272 (t=80.2000), A_25=0.02426830 (t=83.3000), delta=0.06247082
+  A_25=0.02426830 (t=83.3000), A_26=0.02280253 (t=86.5000), delta=0.06229933
+  A_26=0.02280253 (t=86.5000), A_27=0.02140942 (t=89.7000), delta=0.06304069
+  A_27=0.02140942 (t=89.7000), A_28=0.02008774 (t=92.8000), delta=0.06372113
+  A_28=0.02008774 (t=92.8000), A_29=0.01888342 (t=96.0000), delta=0.06182566
+  A_29=0.01888342 (t=96.0000), A_30=0.01773813 (t=99.2000), delta=0.06256768
+
+Node 3: xEq=3.00000000, skipFirst=2, usedPairs=28, delta=0.05392302, decay=5.25%
+  A_2=0.08230029 (t=9.1000), A_3=0.08635559 (t=12.3000), delta=-0.04809889
+  A_3=0.08635559 (t=12.3000), A_4=0.08654614 (t=15.4000), delta=-0.00220406
+  A_4=0.08654614 (t=15.4000), A_5=0.08424830 (t=18.6000), delta=0.02690921
+  A_5=0.08424830 (t=18.6000), A_6=0.08063880 (t=21.8000), delta=0.04378845
+  A_6=0.08063880 (t=21.8000), A_7=0.07647534 (t=24.9000), delta=0.05301159
+  A_7=0.07647534 (t=24.9000), A_8=0.07222929 (t=28.1000), delta=0.05712267
+  A_8=0.07222929 (t=28.1000), A_9=0.06799462 (t=31.3000), delta=0.06041711
+  A_9=0.06799462 (t=31.3000), A_10=0.06388051 (t=34.5000), delta=0.06241431
+  A_10=0.06388051 (t=34.5000), A_11=0.05996331 (t=37.6000), delta=0.06328146
+  A_11=0.05996331 (t=37.6000), A_12=0.05635390 (t=40.8000), delta=0.06208142
+  A_12=0.05635390 (t=40.8000), A_13=0.05292145 (t=44.0000), delta=0.06284273
+  A_13=0.05292145 (t=44.0000), A_14=0.04966299 (t=47.2000), delta=0.06354869
+  A_14=0.04966299 (t=47.2000), A_15=0.04662997 (t=50.3000), delta=0.06301643
+  A_15=0.04662997 (t=50.3000), A_16=0.04381569 (t=53.5000), delta=0.06225150
+  A_16=0.04381569 (t=53.5000), A_17=0.04114233 (t=56.7000), delta=0.06295451
+  A_17=0.04114233 (t=56.7000), A_18=0.03860450 (t=59.9000), delta=0.06366869
+  A_18=0.03860450 (t=59.9000), A_19=0.03627623 (t=63.0000), delta=0.06220615
+  A_19=0.03627623 (t=63.0000), A_20=0.03408089 (t=66.2000), delta=0.06242602
+  A_20=0.03408089 (t=66.2000), A_21=0.03199490 (t=69.4000), delta=0.06316018
+  A_21=0.03199490 (t=69.4000), A_22=0.03002840 (t=72.5000), delta=0.06343305
+  A_22=0.03002840 (t=72.5000), A_23=0.02822490 (t=75.7000), delta=0.06193891
+  A_23=0.02822490 (t=75.7000), A_24=0.02651008 (t=78.9000), delta=0.06267954
+  A_24=0.02651008 (t=78.9000), A_25=0.02488102 (t=82.1000), delta=0.06341978
+  A_25=0.02488102 (t=82.1000), A_26=0.02336837 (t=85.2000), delta=0.06272164
+  A_26=0.02336837 (t=85.2000), A_27=0.02195903 (t=88.4000), delta=0.06220503
+  A_27=0.02195903 (t=88.4000), A_28=0.02061940 (t=91.6000), delta=0.06294629
+  A_28=0.02061940 (t=91.6000), A_29=0.01934715 (t=94.8000), delta=0.06368699
+  A_29=0.01934715 (t=94.8000), A_30=0.01818378 (t=97.9000), delta=0.06201512
+
+Node 4: xEq=4.00000000, skipFirst=2, usedPairs=29, delta=0.06158345, decay=5.97%
+  A_2=0.10444748 (t=8.1000), A_3=0.09467385 (t=11.2000), delta=0.09824658
+  A_3=0.09467385 (t=11.2000), A_4=0.08938654 (t=14.3000), delta=0.05746766
+  A_4=0.08938654 (t=14.3000), A_5=0.08537646 (t=17.4000), delta=0.04589974
+  A_5=0.08537646 (t=17.4000), A_6=0.08138668 (t=20.5000), delta=0.04785882
+  A_6=0.08138668 (t=20.5000), A_7=0.07739810 (t=23.7000), delta=0.05024933
+  A_7=0.07739810 (t=23.7000), A_8=0.07324283 (t=26.9000), delta=0.05518189
+  A_8=0.07324283 (t=26.9000), A_9=0.06916521 (t=30.0000), delta=0.05728246
+  A_9=0.06916521 (t=30.0000), A_10=0.06520717 (t=33.2000), delta=0.05892856
+  A_10=0.06520717 (t=33.2000), A_11=0.06134485 (t=36.4000), delta=0.06105812
+  A_11=0.06134485 (t=36.4000), A_12=0.05761971 (t=39.6000), delta=0.06264656
+  A_12=0.05761971 (t=39.6000), A_13=0.05419774 (t=42.7000), delta=0.06122541
+  A_13=0.05419774 (t=42.7000), A_14=0.05092720 (t=45.9000), delta=0.06224218
+  A_14=0.05092720 (t=45.9000), A_15=0.04781131 (t=49.1000), delta=0.06313486
+  A_15=0.04781131 (t=49.1000), A_16=0.04488922 (t=52.2000), delta=0.06306459
+  A_16=0.04488922 (t=52.2000), A_17=0.04218881 (t=55.4000), delta=0.06204259
+  A_17=0.04218881 (t=55.4000), A_18=0.03962097 (t=58.6000), delta=0.06279662
+  A_18=0.03962097 (t=58.6000), A_19=0.03718175 (t=61.8000), delta=0.06354050
+  A_19=0.03718175 (t=61.8000), A_20=0.03493125 (t=64.9000), delta=0.06243612
+  A_20=0.03493125 (t=64.9000), A_21=0.03282063 (t=68.1000), delta=0.06232455
+  A_21=0.03282063 (t=68.1000), A_22=0.03081477 (t=71.3000), delta=0.06306314
+  A_22=0.03081477 (t=71.3000), A_23=0.02891360 (t=74.4000), delta=0.06368192
+  A_23=0.02891360 (t=74.4000), A_24=0.02717962 (t=77.6000), delta=0.06184466
+  A_24=0.02717962 (t=77.6000), A_25=0.02553071 (t=80.8000), delta=0.06258559
+  A_25=0.02553071 (t=80.8000), A_26=0.02396408 (t=84.0000), delta=0.06332578
+  A_26=0.02396408 (t=84.0000), A_27=0.02250155 (t=87.1000), delta=0.06297196
+  A_27=0.02250155 (t=87.1000), A_28=0.02114648 (t=90.3000), delta=0.06211060
+  A_28=0.02114648 (t=90.3000), A_29=0.01985829 (t=93.5000), delta=0.06285188
+  A_29=0.01985829 (t=93.5000), A_30=0.01863477 (t=96.7000), delta=0.06359251
+  A_30=0.01863477 (t=96.7000), A_31=0.01750986 (t=99.8000), delta=0.06226502
+
+</pre>
+  </div>
+
+  <div class="block">
+    <h2>Шпаргалка (декремент)</h2>
+    <p><b>Амплитуда n-го пика:</b></p>
+    <math display="block">
+      <msub><mi>A</mi><mi>n</mi></msub>
+      <mo>=</mo>
+      <mo>|</mo>
+      <mi>x</mi><mo>(</mo><msub><mi>t</mi><mi>n</mi></msub><mo>)</mo>
+      <mo>-</mo>
+      <msub><mi>x</mi><mrow><mi>e</mi><mi>q</mi></mrow></msub>
+      <mo>|</mo>
+    </math>
+
+    <p><b>Декремент по соседним пикам:</b></p>
+    <math display="block">
+      <msub><mi>&delta;</mi><mi>n</mi></msub>
+      <mo>=</mo>
+      <mi>ln</mi>
+      <mfrac>
+        <msub><mi>A</mi><mi>n</mi></msub>
+        <msub><mi>A</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub>
+      </mfrac>
+    </math>
+
+    <p><b>Средний декремент по интервалу:</b></p>
+    <math display="block">
+      <mi>&delta;</mi>
+      <mo>=</mo>
+      <mfrac><mn>1</mn><mi>N</mi></mfrac>
+      <munderover>
+        <mo>&Sigma;</mo>
+        <mrow><mi>n</mi><mo>=</mo><mn>1</mn></mrow>
+        <mi>N</mi>
+      </munderover>
+      <msub><mi>&delta;</mi><mi>n</mi></msub>
+    </math>
+
+    <p><b>Уменьшение амплитуды за один пик-период:</b></p>
+    <math display="block">
+      <mi>decay</mi><mo>(</mo><mo>%</mo><mo>)</mo>
+      <mo>=</mo>
+      <mo>(</mo><mn>1</mn><mo>-</mo>
+      <msup><mi>e</mi><mrow><mo>-</mo><mi>&delta;</mi></mrow></msup>
+      <mo>)</mo>
+      <mo>&middot;</mo><mn>100</mn><mo>%</mo>
+    </math>
+
+    <p><b>Связь с коэффициентом затухания (underdamped):</b></p>
+    <math display="block">
+      <mi>&zeta;</mi>
+      <mo>=</mo>
+      <mfrac>
+        <mi>&delta;</mi>
+        <msqrt>
+          <mrow><mn>4</mn><msup><mi>&pi;</mi><mn>2</mn></msup><mo>+</mo><msup><mi>&delta;</mi><mn>2</mn></msup></mrow>
+        </msqrt>
+      </mfrac>
+    </math>
+    <math display="block">
+      <mi>&delta;</mi>
+      <mo>=</mo>
+      <mfrac>
+        <mrow><mn>2</mn><mi>&pi;</mi><mi>&zeta;</mi></mrow>
+        <msqrt><mrow><mn>1</mn><mo>-</mo><msup><mi>&zeta;</mi><mn>2</mn></msup></mrow></msqrt>
+      </mfrac>
+    </math>
+
+    <p class="formula-note">Здесь <code>t<sub>n</sub></code> — момент времени, в который достигается n-й амплитудный пик.</p>
+  </div>
   
 
   <div class="block">
@@ -57,5 +468,28 @@
       <li><a href="https://www.mheducation.com/highered/product/fundamentals-vibrations-meirovitch/M9781577667429.html" target="_blank" rel="noopener noreferrer">L. Meirovitch — Fundamentals of Vibrations</a></li>
     </ul>
   </div>
+  <script>
+    (function () {
+      var KEY = "university_plots_theme";
+      var root = document.documentElement;
+      var btn = document.getElementById("theme-toggle");
+      function getTheme() {
+        var a = root.getAttribute("data-theme");
+        return a === "dark" ? "dark" : "light";
+      }
+      function apply(theme) {
+        root.setAttribute("data-theme", theme);
+        try {
+          localStorage.setItem(KEY, theme);
+        } catch (e) {}
+        btn.textContent = theme === "dark" ? "Светлая тема" : "Тёмная тема";
+        btn.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+      }
+      btn.addEventListener("click", function () {
+        apply(getTheme() === "dark" ? "light" : "dark");
+      });
+      apply(getTheme());
+    })();
+  </script>
 </body>
 </html>

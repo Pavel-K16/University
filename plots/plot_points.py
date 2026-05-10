@@ -20,7 +20,19 @@ import html as html_lib
 import matplotlib.pyplot as plt
 import numpy as np
 
-PARALLEL_ONLY_DECREMENT_MAPS = True
+
+def env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Выставляется из scripts/run_and_plot.sh вторым аргументом (или вручную: export PARALLEL=true).
+PARALLEL_ONLY_DECREMENT_MAPS = env_bool("PARALLEL", default=False)
+
+# При генерации PNG: тёмный фон и светлые оси (export PLOT_DARK=true).
+PLOT_DARK_EXPORT = env_bool("PLOT_DARK", default=False)
 
 
 def load_two_column_txt(path: Path):
@@ -104,6 +116,12 @@ def generate_plots_and_html():
         raise FileNotFoundError(f"Директория с данными не найдена: {data_dir}")
 
     plots_dir.mkdir(parents=True, exist_ok=True)
+
+    if PLOT_DARK_EXPORT:
+        try:
+            plt.style.use("dark_background")
+        except OSError:
+            plt.style.use("ggplot")
 
     # ---------- Траектории graph_points*.txt ----------
     node_ids = get_node_ids_from_config(root_dir)
@@ -395,19 +413,70 @@ def generate_plots_and_html():
 </div>
 """
 
+    plot_dark_attr = "1" if PLOT_DARK_EXPORT else "0"
     html_content = f"""<!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-export-dark="{plot_dark_attr}">
 <head>
   <meta charset="UTF-8">
   <title>Графики траекторий и энергии</title>
+  <script>
+    (function () {{
+      try {{
+        var t = localStorage.getItem("university_plots_theme");
+        if (t === "dark" || t === "light")
+          document.documentElement.setAttribute("data-theme", t);
+      }} catch (e) {{}}
+    }})();
+  </script>
   <style>
+    html {{
+      color-scheme: light dark;
+    }}
     body {{
       font-family: sans-serif;
       margin: 20px;
+      padding-top: 48px;
       background: #fafafa;
+      color: #111;
+    }}
+    html[data-theme="dark"] body {{
+      background: #1a1a1e;
+      color: #e8e8ed;
     }}
     h1, h2 {{
       font-weight: 600;
+    }}
+    html[data-theme="dark"] h1,
+    html[data-theme="dark"] h2 {{
+      color: #f0f0f5;
+    }}
+    .theme-bar {{
+      position: fixed;
+      top: 12px;
+      right: 16px;
+      z-index: 1000;
+    }}
+    #theme-toggle {{
+      cursor: pointer;
+      padding: 8px 14px;
+      font-size: 0.95rem;
+      border-radius: 8px;
+      border: 1px solid #bbb;
+      background: #fff;
+      color: #222;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    }}
+    html[data-theme="dark"] #theme-toggle {{
+      border-color: #555;
+      background: #2d2d33;
+      color: #e8e8ed;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }}
+    #theme-toggle:hover {{
+      filter: brightness(0.97);
+    }}
+    html[data-theme="dark"] #theme-toggle:hover {{
+      filter: brightness(1.08);
     }}
     img {{
       max-width: 100%;
@@ -416,9 +485,53 @@ def generate_plots_and_html():
       background: #fff;
       padding: 4px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: filter 0.25s ease;
+    }}
+    html[data-theme="dark"] img {{
+      border-color: #444;
+      background: #121215;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+    }}
+    /* Затемняем «белые» PNG только если они собраны без PLOT_DARK */
+    html[data-theme="dark"]:not([data-export-dark="1"]) img {{
+      filter: brightness(0.68) contrast(1.14) saturate(0.45);
+    }}
+    /* Чуть приглушаем уже тёмные PNG при переключателе */
+    html[data-theme="dark"][data-export-dark="1"] img {{
+      filter: brightness(0.88) saturate(0.82);
     }}
     .block {{
       margin-bottom: 32px;
+    }}
+    pre {{
+      background: #fff;
+      border: 1px solid #ddd;
+      padding: 12px;
+      overflow-x: auto;
+      border-radius: 6px;
+    }}
+    html[data-theme="dark"] pre {{
+      background: #121215;
+      border-color: #444;
+      color: #ddd;
+    }}
+    code {{
+      background: #eee;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }}
+    html[data-theme="dark"] code {{
+      background: #2d2d33;
+      color: #e0e0e8;
+    }}
+    a {{
+      color: #0b57d0;
+    }}
+    html[data-theme="dark"] a {{
+      color: #8ab4ff;
+    }}
+    ul li {{
+      margin-bottom: 0.35em;
     }}
     .formula-block math {{
       font-size: 1.55em;
@@ -428,9 +541,15 @@ def generate_plots_and_html():
       font-size: 1.08em;
       color: #202020;
     }}
+    html[data-theme="dark"] .formula-note {{
+      color: #c8c8d0;
+    }}
   </style>
 </head>
 <body>
+  <div class="theme-bar">
+    <button type="button" id="theme-toggle" aria-label="Переключить тему оформления">Тёмная тема</button>
+  </div>
   <h1>Графики из wolfram/paramsAndPoints</h1>
 
   {"" if PARALLEL_ONLY_DECREMENT_MAPS else f'''
@@ -564,6 +683,29 @@ def generate_plots_and_html():
       <li><a href="https://www.mheducation.com/highered/product/fundamentals-vibrations-meirovitch/M9781577667429.html" target="_blank" rel="noopener noreferrer">L. Meirovitch — Fundamentals of Vibrations</a></li>
     </ul>
   </div>
+  <script>
+    (function () {{
+      var KEY = "university_plots_theme";
+      var root = document.documentElement;
+      var btn = document.getElementById("theme-toggle");
+      function getTheme() {{
+        var a = root.getAttribute("data-theme");
+        return a === "dark" ? "dark" : "light";
+      }}
+      function apply(theme) {{
+        root.setAttribute("data-theme", theme);
+        try {{
+          localStorage.setItem(KEY, theme);
+        }} catch (e) {{}}
+        btn.textContent = theme === "dark" ? "Светлая тема" : "Тёмная тема";
+        btn.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+      }}
+      btn.addEventListener("click", function () {{
+        apply(getTheme() === "dark" ? "light" : "dark");
+      }});
+      apply(getTheme());
+    }})();
+  </script>
 </body>
 </html>
 """

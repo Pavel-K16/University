@@ -12,6 +12,7 @@ import (
 	"masters/internal/numMethods/utils"
 	"math"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -21,11 +22,20 @@ var (
 )
 
 const (
-	minKoef  = -2.0
-	maxKoef  = 2.0
-	step     = 0.1
-	parallel = true
+	minKoef = -2.0
+	maxKoef = 2.0
+	step    = 0.1
 )
+
+func parallelFromEnv() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("PARALLEL")))
+	switch v {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
 
 func main() {
 	start := time.Now()
@@ -33,7 +43,7 @@ func main() {
 	nSteps := int(math.Round((maxKoef - minKoef) / step))
 
 	decrementStore := inmemory.NewDecrementStore()
-	if parallel {
+	if parallelFromEnv() {
 		wg := sync.WaitGroup{}
 
 		for i := 0; i <= nSteps; i++ {
@@ -65,12 +75,19 @@ func main() {
 
 					pointsStore := inmemory.NewPointsStore()
 
-					solveWithGraph(cnf, t0, T, dt, pointsStore, decrementStore, f, b)
+					solveParallelSweepJob(cnf, t0, T, dt, pointsStore, decrementStore, f, b)
 				}(&wg, cnf, t0, T, dt, decrementStore, f, b)
 			}
 		}
 
 		wg.Wait()
+
+		if err := decrementStore.WriteDecrStoreToFiles(); err != nil {
+			log.Errorf("Error writing decrement store to files: %v", err)
+		} else {
+			log.Info("Decrement store written to files")
+		}
+
 	} else {
 		cnf, err := config.ReadGraphConfig()
 		if err != nil {
@@ -89,12 +106,6 @@ func main() {
 
 		pointsStore := inmemory.NewPointsStore()
 		solveWithGraph(cnf, t0, T, dt, pointsStore, decrementStore, f, b)
-	}
-
-	if err := decrementStore.WriteDecrStoreToFiles(); err != nil {
-		log.Errorf("Error writing decrement store to files: %v", err)
-	} else {
-		log.Info("Decrement store written to files")
 	}
 
 	log.Infof("Time taken: %v", time.Since(start))
@@ -121,21 +132,56 @@ func solveWithGraph(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.
 
 	solver := equationsolver.NewGraphSolver(graph, dt)
 
+	skipFirst := 2 // сколько первых максимумов амплитуды пропускаем для посчёта декремента
+
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt, pointsStore)
-	ampSkipFirst := 0
+	ampSkipFirst := 0 // сколько первых аплитуд скипаем
 	if err := utils.WriteAmplitudePointsFromGraphFiles(cnf, pointsStore, ampSkipFirst); err != nil {
 		log.Errorf("Error writing amplitude points: %v", err)
 	}
 
-	// Для отладки/аналитики: оценим логарифмический декремент затухания для node 0
-	// только для conf.json.
-	configName := os.Getenv("CONFIG")
-	if configName == "" {
-		configName = "conf"
+	utils.PrintLogDecrementForAllNodes(cnf, pointsStore, skipFirst, decrementStore, f, b)
+}
+
+// solveParallelSweepJob один прогон для пары (f,b): интеграция без записи graph_points*
+// и заполнение decrementStore (безопасно при многих горутинах).
+func solveParallelSweepJob(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, decrementStore *inmemory.DecrementStore, f, b float64) {
+	graph := g.NewGraph()
+
+	if err := g.CreateGraph(graph, cnf); err != nil {
+		log.Errorf("CreateGraph: %v", err)
+		return
 	}
 
-	skipFirst := 2
-	utils.PrintLogDecrementForAllNodes(cnf, pointsStore, skipFirst, decrementStore, f, b)
+	setAeroParams(cnf, graph)
+
+	graph.BackAeroKoef = b
+	graph.ForwardAeroKoef = f
+
+	solver := equationsolver.NewGraphSolver(graph, dt)
+
+	simulatePointsInMemory(solver, graph, t0, T, dt, pointsStore)
+	utils.StoreLogDecrementForAllNodes(cnf, pointsStore, 2, decrementStore, f, b)
+}
+
+func simulatePointsInMemory(solver *equationsolver.GraphSolver, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore) {
+	if pointsStore == nil {
+		return
+	}
+	if t0 > 0 {
+		for t := 0.0; t < t0; t += dt {
+			solver.Step(t)
+		}
+	}
+	for t := t0; t <= T; t += dt {
+		solver.Step(t)
+		for _, node := range graph.Nodes {
+			if node == nil {
+				continue
+			}
+			pointsStore.AddPoint(node.ID, inmemory.Point{T: t, X: node.Position})
+		}
+	}
 }
 
 func setAeroParams(cnf *config.Graph, graph *g.Graph) {

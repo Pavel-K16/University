@@ -56,4 +56,3 @@ func WriteAmplitudePointsFromGraphFiles(cnf *config.Graph, pointsStore *inmemory
 
 	return nil
 }
-

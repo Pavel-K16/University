@@ -40,6 +40,7 @@ func equilibriumForNodeFromConfig(cnf *config.Graph, nodeID int) (float64, bool)
 			fixedNodes = append(fixedNodes, n)
 		}
 	}
+	
 	if len(fixedNodes) == 0 {
 		return 0, false
 	}
@@ -266,4 +267,27 @@ func PrintLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.Point
 	}
 
 	_ = os.WriteFile(decrementDetailsLogPath, []byte(sb.String()), 0666)
+}
+
+// StoreLogDecrementForAllNodes считает средний декремент по подвижным узлам
+// и сохраняет в decrementStore без записи decrement_points / decrement_details.log и без вывода в консоль.
+func StoreLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.PointsStore, skipFirstMaxima int, decrementStore *inmemory.DecrementStore, f, b float64) {
+	if cnf == nil || pointsStore == nil || decrementStore == nil {
+		return
+	}
+	for _, node := range cnf.Nodes {
+		if node.IsFixed {
+			continue
+		}
+		xEq, ok := equilibriumForNodeFromConfig(cnf, node.ID)
+		if !ok {
+			continue
+		}
+		nodePoints := pointsStore.GetPoints(node.ID)
+		delta, _, err := EstimateLogDecrementFromGraphPoints(nodePoints, xEq, skipFirstMaxima)
+		if err != nil {
+			continue
+		}
+		decrementStore.AddDecrement(node.ID, f, b, delta)
+	}
 }
