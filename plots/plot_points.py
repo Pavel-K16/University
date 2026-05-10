@@ -13,11 +13,18 @@
   plots/sum_energy.png
   plots/node_energy.png
   plots/node_d_energy.png
+  plots/analytical_dadt.png — аналитика dA/dt по среднему δ (только PARALLEL=false)
   plots/index.html
+
+Переменные окружения (опционально):
+  ANALYTICAL_DA_A0 — коэффициент A0 в формуле (по умолчанию -1; можно задать 1 и др.).
+  ANALYTICAL_DT_SOURCE — peak (по умолчанию): Δt = среднее расстояние между пиками
+    из amplitude_points*.txt; integrator — брать dt из конфига times.dt.
 """
 
 from pathlib import Path
 import os
+import re
 import json
 import html as html_lib
 
@@ -110,6 +117,83 @@ def get_movable_node_ids_from_config(root_dir: Path) -> list[int]:
     return sorted(set(ids))
 
 
+def parse_mean_delta_by_node_from_log(text: str) -> dict[int, float]:
+    """Строки сводки PrintLogDecrementForAllNodes: Node id: ... delta=..."""
+    out: dict[int, float] = {}
+    pat = re.compile(
+        r"^Node\s+(\d+):.*?delta=([+-]?(?:\d*\.)?\d+(?:[eE][+-]?\d+)?)",
+        re.MULTILINE,
+    )
+    for m in pat.finditer(text):
+        out[int(m.group(1))] = float(m.group(2))
+    return out
+
+
+def mean_delta_from_decrement_points_file(path: Path) -> float | None:
+    _, d = load_two_column_txt(path)
+    if d.size == 0:
+        return None
+    return float(np.mean(d))
+
+
+def mean_peak_spacing_from_amplitude_file(path: Path) -> float | None:
+    """Средний интервал между моментами соседних пиков амплитуды (первая колонка)."""
+    t, _ = load_two_column_txt(path)
+    if t.size < 2:
+        return None
+    dt = np.diff(t)
+    positive = dt[dt > 0]
+    if positive.size == 0:
+        return None
+    return float(np.mean(positive))
+
+
+def get_integration_dt_from_config(root_dir: Path) -> float | None:
+    config_name = os.environ.get("CONFIG", "conf")
+    config_path = root_dir / "internal" / "config" / "confs" / f"{config_name}.json"
+    if not config_path.exists():
+        return None
+    try:
+        with config_path.open("r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception:
+        return None
+    times = cfg.get("times") or {}
+    dt = times.get("dt")
+    if dt is None:
+        return None
+    try:
+        v = float(dt)
+    except (TypeError, ValueError):
+        return None
+    return v if v > 0 else None
+
+
+def graph_points_t_max(path: Path) -> float | None:
+    t, _ = load_two_column_txt(path)
+    if t.size == 0:
+        return None
+    mx = float(np.max(t))
+    return mx if mx > 0 else None
+
+
+def node_ids_from_graph_points_glob(data_dir: Path) -> list[int]:
+    ids: list[int] = []
+    for p in sorted(data_dir.glob("graph_points*.txt")):
+        m = re.match(r"^graph_points(\d+)$", p.stem)
+        if m:
+            ids.append(int(m.group(1)))
+    return ids
+
+
+def analytical_d_amplitude_dt(t: np.ndarray, delta_bar: float, dt_char: float, a0: float) -> np.ndarray:
+    """
+    dA/dt ≈ -(δ̄/Δt) A₀ exp(-δ̄ t / Δt) при экспоненциальной огибающей A(t)≈A₀ exp(-δ̄ t/Δt).
+    """
+    alpha = delta_bar / dt_char
+    return -alpha * a0 * np.exp(-alpha * t)
+
+
 def generate_plots_and_html():
     # Текущий файл: <root>/plots/plot_points.py
     plots_dir = Path(__file__).resolve().parent
@@ -149,10 +233,12 @@ def generate_plots_and_html():
     dsum_energy_img_name = "dsum_energy.png"
     node_energy_img_name = "node_energy.png"
     node_d_energy_img_name = "node_d_energy.png"
+    analytical_dadt_img_name = "analytical_dadt.png"
     dec_img_name = "decrement_deltas.png"
     decr_map_imgs = []
     energy_per_node_has_data = False
     d_energy_per_node_has_data = False
+    analytical_dadt_has_data = False
 
     if (not PARALLEL_ONLY_DECREMENT_MAPS) and graph_files:
         plt.figure(figsize=(10, 6))
@@ -410,6 +496,85 @@ def generate_plots_and_html():
     elif not PARALLEL_ONLY_DECREMENT_MAPS and not d_energy_per_node_files:
         print(f"Файлы d_energy_points*.txt не найдены в {data_dir}")
 
+    # ---------- Аналитическая dA/dt от среднего δ (только без PARALLEL) ----------
+    if not PARALLEL_ONLY_DECREMENT_MAPS:
+        logs_an_path = data_dir / "decrement_details.log"
+        log_an_text = ""
+        if logs_an_path.exists():
+            try:
+                log_an_text = logs_an_path.read_text(encoding="utf-8")
+            except Exception:
+                log_an_text = ""
+        delta_by_node = parse_mean_delta_by_node_from_log(log_an_text)
+
+        raw_a0 = os.environ.get("ANALYTICAL_DA_A0", "-1").strip()
+        try:
+            a0_plot = float(raw_a0)
+        except ValueError:
+            a0_plot = -1.0
+
+        dt_src = os.environ.get("ANALYTICAL_DT_SOURCE", "peak").strip().lower()
+        integr_dt = get_integration_dt_from_config(root_dir)
+
+        nodes_for_analytical = (
+            movable_node_ids if movable_node_ids else node_ids_from_graph_points_glob(data_dir)
+        )
+
+        plt.figure(figsize=(10, 6))
+        colors = plt.cm.tab10.colors
+        plot_idx = 0
+        for node_id in nodes_for_analytical:
+            dbar = delta_by_node.get(node_id)
+            if dbar is None:
+                dp_path = data_dir / f"decrement_points{node_id}.txt"
+                if dp_path.exists():
+                    dbar = mean_delta_from_decrement_points_file(dp_path)
+            if dbar is None or dbar <= 0:
+                continue
+
+            dt_char: float | None = None
+            if dt_src in ("integrator", "dt", "config"):
+                dt_char = integr_dt
+            else:
+                amp_p = data_dir / f"amplitude_points{node_id}.txt"
+                if amp_p.exists():
+                    dt_char = mean_peak_spacing_from_amplitude_file(amp_p)
+                if (dt_char is None or dt_char <= 0) and integr_dt is not None:
+                    dt_char = integr_dt
+
+            if dt_char is None or dt_char <= 0:
+                print(f"Узел {node_id}: не задан положительный Δt для аналитики dA/dt, пропуск.")
+                continue
+
+            gp = data_dir / f"graph_points{node_id}.txt"
+            if not gp.exists():
+                continue
+            t_max = graph_points_t_max(gp)
+            if t_max is None:
+                continue
+
+            n_pts = max(80, min(4000, int(t_max / max(dt_char * 0.05, 1e-9))))
+            t_fine = np.linspace(0.0, t_max, n_pts)
+            y = analytical_d_amplitude_dt(t_fine, dbar, dt_char, a0_plot)
+            lbl = f"node {node_id} (δ̄={dbar:.4g}, Δt={dt_char:.4g})"
+            plt.plot(t_fine, y, label=lbl, color=colors[plot_idx % len(colors)])
+            analytical_dadt_has_data = True
+            plot_idx += 1
+
+        if analytical_dadt_has_data:
+            plt.xlabel("t")
+            plt.ylabel("dA/dt")
+            src_note = "Δt: интервал между пиками" if dt_src not in ("integrator", "dt", "config") else "Δt: times.dt из конфига"
+            plt.title(
+                r"Аналитика $\frac{dA}{dt}\approx -\frac{\bar\delta}{\Delta t} A_0 \exp(-\bar\delta t/\Delta t)$"
+                + f", $A_0$={a0_plot:g}; {src_note}"
+            )
+            plt.grid(True, alpha=0.3)
+            plt.legend(fontsize=8)
+            plt.tight_layout()
+            plt.savefig(plots_dir / analytical_dadt_img_name, dpi=200)
+        plt.close()
+
     # ---------- Генерация HTML ----------
     html_path = plots_dir / "index.html"
     logs_path = data_dir / "decrement_details.log"
@@ -651,6 +816,11 @@ def generate_plots_and_html():
   <div class="block">
     <h2>Производная энергии по узлам (d_energy_points*.txt)</h2>
     {"<p>Файлы не найдены или нет данных.</p>" if not d_energy_per_node_has_data else f'<img src="{node_d_energy_img_name}" alt="dE/dt per node">'}
+  </div>
+
+  <div class="block">
+    <h2>Аналитическая производная амплитуды (по среднему δ)</h2>
+    {"<p>Нет кривых: нужны graph_points*, положительный δ (decrement_details.log или decrement_points*) и Δt (пики или times.dt).</p>" if not analytical_dadt_has_data else f'<img src="{analytical_dadt_img_name}" alt="Analytical dA/dt">'}
   </div>
   '''}
 
