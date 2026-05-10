@@ -6,6 +6,7 @@ import (
 	"masters/internal/logger"
 
 	"masters/internal/config"
+	inmemory "masters/internal/inMemory"
 )
 
 var (
@@ -94,7 +95,7 @@ func CreateGraph(graph *Graph, cnf *config.Graph) error {
 
 	graph.Period = period
 
-//	log.Debugf("Period: %f", graph.Period)
+	//	log.Debugf("Period: %f", graph.Period)
 
 	if num > 0 {
 		graph.FirstNodeID = graph.GetNode(0).ID
@@ -196,6 +197,10 @@ func (g *Graph) NetForce(nodeID int) float64 {
 	//}
 
 	return force + aeroForce
+}
+
+func (g *Graph) TotalEnergy4NodeEnergyStore(t float64, energyStore *inmemory.EnergyStore) {
+
 }
 
 func (g *Graph) TotalPotentialEnergy() float64 {
