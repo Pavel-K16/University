@@ -5,10 +5,14 @@
 Данные берутся из:
   ../wolfram/paramsAndPoints/graph_points*.txt   (t, x)
   ../wolfram/paramsAndPoints/sumEnergyPoints.txt (t, E)
+  ../wolfram/paramsAndPoints/energy_points*.txt (t, E по узлу) — только при PARALLEL=false
+  ../wolfram/paramsAndPoints/d_energy_points*.txt (t, dE/dt по узлу) — только при PARALLEL=false
 
 Результаты сохраняются в:
   plots/trajectories.png
   plots/sum_energy.png
+  plots/node_energy.png
+  plots/node_d_energy.png
   plots/index.html
 """
 
@@ -143,8 +147,12 @@ def generate_plots_and_html():
     amp_img_name = "amplitudes.png"
     energy_img_name = "sum_energy.png"
     dsum_energy_img_name = "dsum_energy.png"
+    node_energy_img_name = "node_energy.png"
+    node_d_energy_img_name = "node_d_energy.png"
     dec_img_name = "decrement_deltas.png"
     decr_map_imgs = []
+    energy_per_node_has_data = False
+    d_energy_per_node_has_data = False
 
     if (not PARALLEL_ONLY_DECREMENT_MAPS) and graph_files:
         plt.figure(figsize=(10, 6))
@@ -339,6 +347,68 @@ def generate_plots_and_html():
         plt.close()
     elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файл с производной полной энергии не найден: {dsum_energy_path}")
+
+    # ---------- Энергия по узлам energy_points*.txt (только без PARALLEL) ----------
+    energy_per_node_files = []
+    if movable_node_ids:
+        for node_id in movable_node_ids:
+            path = data_dir / f"energy_points{node_id}.txt"
+            if path.exists():
+                energy_per_node_files.append(path)
+    else:
+        energy_per_node_files = sorted(data_dir.glob("energy_points*.txt"))
+
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and energy_per_node_files:
+        plt.figure(figsize=(10, 6))
+        colors = plt.cm.tab10.colors
+        for idx, path in enumerate(energy_per_node_files):
+            t, E = load_two_column_txt(path)
+            if t.size == 0:
+                continue
+            energy_per_node_has_data = True
+            plt.plot(t, E, label=path.stem, color=colors[idx % len(colors)])
+        if energy_per_node_has_data:
+            plt.xlabel("t")
+            plt.ylabel("E(t)")
+            plt.title("Energy per node (energy_points*.txt)")
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(plots_dir / node_energy_img_name, dpi=200)
+        plt.close()
+    elif not PARALLEL_ONLY_DECREMENT_MAPS and not energy_per_node_files:
+        print(f"Файлы energy_points*.txt не найдены в {data_dir}")
+
+    # ---------- Производная энергии по узлам d_energy_points*.txt (только без PARALLEL) ----------
+    d_energy_per_node_files = []
+    if movable_node_ids:
+        for node_id in movable_node_ids:
+            path = data_dir / f"d_energy_points{node_id}.txt"
+            if path.exists():
+                d_energy_per_node_files.append(path)
+    else:
+        d_energy_per_node_files = sorted(data_dir.glob("d_energy_points*.txt"))
+
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and d_energy_per_node_files:
+        plt.figure(figsize=(10, 6))
+        colors = plt.cm.tab10.colors
+        for idx, path in enumerate(d_energy_per_node_files):
+            t, d_e = load_two_column_txt(path)
+            if t.size == 0:
+                continue
+            d_energy_per_node_has_data = True
+            plt.plot(t, d_e, label=path.stem, color=colors[idx % len(colors)])
+        if d_energy_per_node_has_data:
+            plt.xlabel("t")
+            plt.ylabel("dE/dt")
+            plt.title("dE/dt per node (d_energy_points*.txt)")
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(plots_dir / node_d_energy_img_name, dpi=200)
+        plt.close()
+    elif not PARALLEL_ONLY_DECREMENT_MAPS and not d_energy_per_node_files:
+        print(f"Файлы d_energy_points*.txt не найдены в {data_dir}")
 
     # ---------- Генерация HTML ----------
     html_path = plots_dir / "index.html"
@@ -571,6 +641,16 @@ def generate_plots_and_html():
   <div class="block">
     <h2>Производная полной энергии (dSumEnergyPoints.txt)</h2>
     {"<p>Файл не найден.</p>" if not dsum_energy_exists else f'<img src="{dsum_energy_img_name}" alt="dE/dt">'}
+  </div>
+
+  <div class="block">
+    <h2>Энергия по узлам (energy_points*.txt)</h2>
+    {"<p>Файлы не найдены или нет данных.</p>" if not energy_per_node_has_data else f'<img src="{node_energy_img_name}" alt="Energy per node">'}
+  </div>
+
+  <div class="block">
+    <h2>Производная энергии по узлам (d_energy_points*.txt)</h2>
+    {"<p>Файлы не найдены или нет данных.</p>" if not d_energy_per_node_has_data else f'<img src="{node_d_energy_img_name}" alt="dE/dt per node">'}
   </div>
   '''}
 

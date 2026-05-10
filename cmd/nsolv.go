@@ -105,18 +105,26 @@ func main() {
 		f := 1.0
 
 		pointsStore := inmemory.NewPointsStore()
-		solveWithGraph(cnf, t0, T, dt, pointsStore, decrementStore, f, b)
+		energyStore := inmemory.NewEnergyStore()
+
+		graph := g.NewGraph()
+
+		solveWithGraph(cnf, graph, t0, T, dt, pointsStore, decrementStore, energyStore, f, b)
+
+		if err := energyStore.WriteEnenryStoreToFiles(graph.NodesNumbers()); err != nil {
+			log.Errorf("Error writing energy store to files: %v", err)
+		} else {
+			log.Info("Energy store written to files")
+		}
 	}
 
 	log.Infof("Time taken: %v", time.Since(start))
 }
 
-func solveWithGraph(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, decrementStore *inmemory.DecrementStore, f, b float64) {
+func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, decrementStore *inmemory.DecrementStore, energyStore *inmemory.EnergyStore, f, b float64) {
 	fmt.Println("\n=== Решение задачи о метрономах через графовую систему ===")
 	fmt.Printf("Начальные условия: t=0\n")
 	fmt.Printf("Диапазон расчёта: t=[%.2f, %.2f], dt=%.4f\n", t0, T, dt)
-
-	graph := g.NewGraph()
 
 	if err := g.CreateGraph(graph, cnf); err != nil {
 		log.Errorf("CreateGraph: %v", err)
@@ -134,7 +142,7 @@ func solveWithGraph(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.
 
 	skipFirst := 2 // сколько первых максимумов амплитуды пропускаем для посчёта декремента
 
-	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt, pointsStore)
+	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt, pointsStore, energyStore)
 	ampSkipFirst := 0 // сколько первых аплитуд скипаем
 	if err := utils.WriteAmplitudePointsFromGraphFiles(cnf, pointsStore, ampSkipFirst); err != nil {
 		log.Errorf("Error writing amplitude points: %v", err)

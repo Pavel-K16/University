@@ -23,7 +23,7 @@ var (
 	log = logger.LoggerInit()
 )
 
-func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore) {
+func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, energyStore *inmemory.EnergyStore) {
 	graphPointsFiles := make([]*os.File, 0)
 
 	for _, node := range graph.Nodes {
@@ -84,6 +84,7 @@ func WriteGraphPointsToFiles(solver *equationsolver.GraphSolver, graph *graph.Gr
 			fmt.Fprintf(file, "%.10f %.10f\n", t, node.Position)
 		}
 
+		graph.TotalEnergy4NodeEnergyStore(t, energyStore)
 		kineticEnergy := graph.TotalKineticEnergy()
 		fmt.Fprintf(kineticEnergyFile, "%.10f %.10f\n", t, kineticEnergy)
 		potentialEnergy := graph.TotalPotentialEnergy()

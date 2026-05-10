@@ -200,12 +200,52 @@ func (g *Graph) NetForce(nodeID int) float64 {
 }
 
 func (g *Graph) TotalEnergy4NodeEnergyStore(t float64, energyStore *inmemory.EnergyStore) {
+	if energyStore == nil {
+		log.Errorf("energyStore is nil")
+
+		return
+	}
+
+	for _, node := range g.Nodes {
+		if node.IsFixed {
+			continue
+		}
+
+		sum := 0.0
+		for _, edge := range node.Edges {
+			targetNode := g.GetNode(edge.TargetID)
+			if targetNode == nil {
+				continue
+			}
+			dx := springDeformation(g, node, targetNode, edge)
+			sum += 0.25 * edge.K * dx * dx
+		}
+
+		sum += 0.5 * node.Mass * node.Velocity * node.Velocity
+		energyStore.AddEnergyPoint(node.ID, t, sum)
+		enPoints := energyStore.GetEnergyPoints(node.ID)
+
+		if len(enPoints) >= 2 {
+			prevEn := enPoints[len(enPoints)-2].Energy
+			prevTime := enPoints[len(enPoints)-2].Time
+
+			dt := t - prevTime
+			if dt != 0 {
+				dEn := (sum - prevEn) / dt
+				energyStore.AddDEnergyPoint(node.ID, t, dEn)
+			}
+		}
+	}
 
 }
 
 func (g *Graph) TotalPotentialEnergy() float64 {
 	var sum float64
 	for _, node := range g.Nodes {
+		if node.IsFixed {
+			continue
+		}
+
 		for _, edge := range node.Edges {
 			targetNode := g.GetNode(edge.TargetID)
 			if targetNode == nil {
