@@ -40,7 +40,7 @@ func equilibriumForNodeFromConfig(cnf *config.Graph, nodeID int) (float64, bool)
 			fixedNodes = append(fixedNodes, n)
 		}
 	}
-	
+
 	if len(fixedNodes) == 0 {
 		return 0, false
 	}
@@ -64,46 +64,6 @@ func equilibriumForNodeFromConfig(cnf *config.Graph, nodeID int) (float64, bool)
 	}
 
 	return 0, false
-}
-
-// EstimateLogDecrementFromGraphPoints читает graph_points{nodeID}.txt,
-// считает амплитуды A=|x-xEq|, находит локальные максимумы амплитуды и возвращает оценку логарифмического декремента.
-//
-// skipFirstMaxima — сколько первых максимумов амплитуды пропустить (обычно 2+).
-func findAmplitudeMaximaInMemory(points []inmemory.Point, xEq float64) []maxPoint {
-	if len(points) == 0 {
-		return nil
-	}
-	maxs := make([]maxPoint, 0)
-
-	amp := func(i int) float64 {
-		return math.Abs(points[i].X - xEq)
-	}
-
-	// Левый край: добавляем только если сразу идём вниз (валидный стартовый максимум).
-	if len(points) >= 2 {
-		a0 := amp(0)
-		a1 := amp(1)
-		if a0 > a1 {
-			maxs = append(maxs, maxPoint{t: points[0].T, a: a0})
-		}
-	}
-
-	for i := 1; i < len(points)-1; i++ {
-		aPrev := amp(i - 1)
-		aCurr := amp(i)
-		aNext := amp(i + 1)
-		dL := aCurr - aPrev
-		dR := aNext - aCurr
-		if dL > 0 && dR < 0 {
-			maxs = append(maxs, maxPoint{t: points[i].T, a: aCurr})
-		}
-	}
-
-	// Правый край не добавляем: на конце интервала часто незавершённый полупериод,
-	// и это даёт ложный "пик" амплитуды.
-
-	return maxs
 }
 
 func writeDecrementPoints(nodeID int, maxs []maxPoint, skipFirstMaxima int) error {
@@ -137,7 +97,7 @@ func writeDecrementPoints(nodeID int, maxs []maxPoint, skipFirstMaxima int) erro
 }
 
 func EstimateLogDecrementFromGraphPoints(points []inmemory.Point, xEq float64, skipFirstMaxima int) (delta float64, used int, err error) {
-	maxs := findAmplitudeMaximaInMemory(points, xEq)
+	maxs := FindAmplitudeMaximaInMemory(points, xEq)
 	if len(maxs) < 2 {
 		return 0, 0, fmt.Errorf("not enough amplitude maxima: maxs=%d (need >=2 oscillation peaks; increase T or reduce damping)", len(maxs))
 	}
@@ -209,7 +169,7 @@ func PrintLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.Point
 			continue
 		}
 		nodePoints := pointsStore.GetPoints(node.ID)
-		maxs := findAmplitudeMaximaInMemory(nodePoints, xEq)
+		maxs := FindAmplitudeMaximaInMemory(nodePoints, xEq)
 		r.maxs = maxs
 
 		delta, used, err := EstimateLogDecrementFromGraphPoints(nodePoints, xEq, skipFirstMaxima)
