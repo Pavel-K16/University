@@ -30,11 +30,26 @@ func (s *EnergyStore) AddEnergyPoint(nodeID int, t, val float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.energy[nodeID] = append(s.energy[nodeID], EnergyPoint{Time: t, Energy: val})
+
+	addDEnergyPoint(s, nodeID, t, val)
 }
 
-func (s *EnergyStore) AddDEnergyPoint(nodeID int, t, val float64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func addDEnergyPoint(s *EnergyStore, nodeID int, t, val float64) {
+	enPoints := s.energy[nodeID]
+
+	if len(enPoints) >= 2 {
+		prevEn := enPoints[len(enPoints)-2].Energy
+		prevTime := enPoints[len(enPoints)-2].Time
+
+		dt := t - prevTime
+		if dt != 0 {
+			dEn := (val - prevEn) / dt
+			s.addDEnergyPoint(nodeID, t, dEn)
+		}
+	}
+}
+
+func (s *EnergyStore) addDEnergyPoint(nodeID int, t, val float64) {
 	s.dEnergy[nodeID] = append(s.dEnergy[nodeID], EnergyPoint{Time: t, Energy: val})
 }
 
@@ -52,32 +67,32 @@ func (s *EnergyStore) GetDEnergyPoints(nodeID int) []EnergyPoint {
 	return s.dEnergy[nodeID]
 }
 
-func (s *EnergyStore) WriteEnenryStoreToFiles(nodeIDs []int) error {
+func (s *EnergyStore) WriteEnergyStoreToFiles(nodeIDs []int) error {
 	for _, nodeID := range nodeIDs {
 		enPoints := s.GetEnergyPoints(nodeID)
 		dEnPoints := s.GetDEnergyPoints(nodeID)
 
-		enFile, err := os.Create(fmt.Sprintf(energyPointsFileTmpl, nodeID))
+		enFile, err := os.OpenFile(fmt.Sprintf(energyPointsFileTmpl, nodeID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 		if err != nil {
 			return err
 		}
-		defer enFile.Close()
 
 		for _, enPoint := range enPoints {
 			fmt.Fprintf(enFile, "%f %f\n", enPoint.Time, enPoint.Energy)
 		}
 
-		dEnFile, err := os.Create(fmt.Sprintf(dEnergyPointsFileTmpl, nodeID))
+		enFile.Close()
+
+		dEnFile, err := os.OpenFile(fmt.Sprintf(dEnergyPointsFileTmpl, nodeID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 		if err != nil {
 			return err
 		}
-
-		defer dEnFile.Close()
 
 		for _, dEnPoint := range dEnPoints {
 			fmt.Fprintf(dEnFile, "%f %f\n", dEnPoint.Time, dEnPoint.Energy)
 		}
 
+		dEnFile.Close()
 	}
 
 	return nil
