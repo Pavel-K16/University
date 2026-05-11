@@ -223,20 +223,7 @@ func (g *Graph) TotalEnergy4NodeEnergyStore(t float64, energyStore *inmemory.Ene
 
 		sum += 0.5 * node.Mass * node.Velocity * node.Velocity
 		energyStore.AddEnergyPoint(node.ID, t, sum)
-		enPoints := energyStore.GetEnergyPoints(node.ID)
-
-		if len(enPoints) >= 2 {
-			prevEn := enPoints[len(enPoints)-2].Energy
-			prevTime := enPoints[len(enPoints)-2].Time
-
-			dt := t - prevTime
-			if dt != 0 {
-				dEn := (sum - prevEn) / dt
-				energyStore.AddDEnergyPoint(node.ID, t, dEn)
-			}
-		}
 	}
-
 }
 
 func (g *Graph) TotalPotentialEnergy() float64 {
