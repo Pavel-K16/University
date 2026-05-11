@@ -14,10 +14,11 @@
   plots/node_energy.png
   plots/node_d_energy.png
   plots/analytical_dadt.png — аналитика dA/dt по среднему δ (только PARALLEL=false)
+  plots/d_amplitudes.png — производная амплитуды из d_amplitude_points*.txt (только PARALLEL=false)
   plots/index.html
 
 Переменные окружения (опционально):
-  ANALYTICAL_DA_A0 — коэффициент A0 в формуле (по умолчанию -1; можно задать 1 и др.).
+  A0 — коэффициент A0 в аналитической формуле dA/dt (по умолчанию 1; например export A0=-1).
   ANALYTICAL_DT_SOURCE — peak (по умолчанию): Δt = среднее расстояние между пиками
     из amplitude_points*.txt; integrator — брать dt из конфига times.dt.
 """
@@ -234,11 +235,13 @@ def generate_plots_and_html():
     node_energy_img_name = "node_energy.png"
     node_d_energy_img_name = "node_d_energy.png"
     analytical_dadt_img_name = "analytical_dadt.png"
+    d_amp_img_name = "d_amplitudes.png"
     dec_img_name = "decrement_deltas.png"
     decr_map_imgs = []
     energy_per_node_has_data = False
     d_energy_per_node_has_data = False
     analytical_dadt_has_data = False
+    d_amp_has_data = False
 
     if (not PARALLEL_ONLY_DECREMENT_MAPS) and graph_files:
         plt.figure(figsize=(10, 6))
@@ -507,11 +510,11 @@ def generate_plots_and_html():
                 log_an_text = ""
         delta_by_node = parse_mean_delta_by_node_from_log(log_an_text)
 
-        raw_a0 = os.environ.get("ANALYTICAL_DA_A0", "-1").strip()
+        raw_a0 = os.environ.get("A0", "1").strip()
         try:
             a0_plot = float(raw_a0)
         except ValueError:
-            a0_plot = -1.0
+            a0_plot = 1.0
 
         dt_src = os.environ.get("ANALYTICAL_DT_SOURCE", "peak").strip().lower()
         integr_dt = get_integration_dt_from_config(root_dir)
@@ -574,6 +577,38 @@ def generate_plots_and_html():
             plt.tight_layout()
             plt.savefig(plots_dir / analytical_dadt_img_name, dpi=200)
         plt.close()
+
+        # ---------- dA/dt по узлам из d_amplitude_points*.txt ----------
+        d_amp_files = []
+        if movable_node_ids:
+            for node_id in movable_node_ids:
+                p = data_dir / f"d_amplitude_points{node_id}.txt"
+                if p.exists():
+                    d_amp_files.append(p)
+        else:
+            d_amp_files = sorted(data_dir.glob("d_amplitude_points*.txt"))
+
+        if d_amp_files:
+            plt.figure(figsize=(10, 6))
+            colors = plt.cm.tab10.colors
+            for idx, path in enumerate(d_amp_files):
+                t, dA = load_two_column_txt(path)
+                if t.size == 0:
+                    continue
+                d_amp_has_data = True
+                plt.plot(t, dA, marker="o", linestyle="-", label=path.stem, color=colors[idx % len(colors)])
+
+            if d_amp_has_data:
+                plt.xlabel("t")
+                plt.ylabel("dA/dt")
+                plt.title("dA/dt per node (d_amplitude_points*.txt)")
+                plt.grid(True, alpha=0.3)
+                plt.legend()
+                plt.tight_layout()
+                plt.savefig(plots_dir / d_amp_img_name, dpi=200)
+            plt.close()
+        else:
+            print(f"Файлы d_amplitude_points*.txt не найдены в {data_dir}")
 
     # ---------- Генерация HTML ----------
     html_path = plots_dir / "index.html"
@@ -821,6 +856,11 @@ def generate_plots_and_html():
   <div class="block">
     <h2>Аналитическая производная амплитуды (по среднему δ)</h2>
     {"<p>Нет кривых: нужны graph_points*, положительный δ (decrement_details.log или decrement_points*) и Δt (пики или times.dt).</p>" if not analytical_dadt_has_data else f'<img src="{analytical_dadt_img_name}" alt="Analytical dA/dt">'}
+  </div>
+
+  <div class="block">
+    <h2>Производная амплитуды по узлам (d_amplitude_points*.txt)</h2>
+    {"<p>Файлы не найдены или нет данных.</p>" if not d_amp_has_data else f'<img src="{d_amp_img_name}" alt="dA/dt per node">'}
   </div>
   '''}
 
