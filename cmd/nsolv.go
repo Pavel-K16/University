@@ -101,8 +101,8 @@ func main() {
 		t0 := cnf.Times.T0
 		dt := cnf.Times.Dt
 
-		b := 2.0
-		f := 1.0
+		b := -0.2
+		f := -0.2
 
 		pointsStore := inmemory.NewPointsStore()
 		amplitudeStore := inmemory.NewAmplitudeStore()
@@ -123,9 +123,58 @@ func main() {
 		} else {
 			log.Info("Amplitude store written to files")
 		}
+
+		freqs := GetAvgFrequency4Nodes(graph, amplitudeStore)
+		for _, freq := range freqs {
+			log.Infof("Frequency for node %d: %f", freq.NodeID, freq.Freq)
+		}
 	}
 
 	log.Infof("Time taken: %v", time.Since(start))
+}
+
+type W struct {
+	NodeID int
+	Freq   float64
+}
+
+func GetAvgFrequency4Nodes(g *g.Graph, amplitudeStore *inmemory.AmplitudeStore) []W {
+
+	freqs := make([]W, 0)
+
+	for _, node := range g.Nodes {
+		w := 0.0
+		n := 0.0
+
+		if node.IsFixed {
+			continue
+		}
+		amplitudes := amplitudeStore.GetAmplitudes(node.ID)
+		if len(amplitudes) < 2 {
+			continue
+		}
+
+		for i := 0; i < len(amplitudes)-1; {
+			t1 := amplitudes[i].T
+			t2 := amplitudes[i+2].T
+			dt := t2 - t1
+			if dt > 0 {
+				freq := 1 / dt
+				w += freq
+				n += 1.0
+			}
+			i += 2
+		}
+		if n == 0 {
+			log.Infof("No frequencies found for node %d", node.ID)
+
+			continue
+		}
+
+		freqs = append(freqs, W{NodeID: node.ID, Freq: w / n})
+	}
+
+	return freqs
 }
 
 func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, amplitudeStore *inmemory.AmplitudeStore, decrementStore *inmemory.DecrementStore, energyStore *inmemory.EnergyStore, f, b float64) {
