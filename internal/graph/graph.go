@@ -310,9 +310,9 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 		} else {
 			// Обычное правило: если nodeID > targetID, то -1, иначе +1
 			if nodeID > edge.TargetID {
-				aeroKoef = -1.0
+				aeroKoef = g.BackAeroKoef
 			} else {
-				aeroKoef = 1.0
+				aeroKoef = g.ForwardAeroKoef
 			}
 		}
 
