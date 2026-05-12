@@ -16,7 +16,7 @@
   plots/analytical_dadt.png — аналитика dA/dt по среднему δ (только PARALLEL=false)
   plots/d_amplitudes.png — производная амплитуды из d_amplitude_points*.txt (только PARALLEL=false)
   plots/index.html
-  plots/decrement_map_node*_interactive.html — интерактивные карты декремента (клик по точке)
+  plots/decrement_map_node*.png, plots/decrement_map_node*_interactive.html — только при PARALLEL=true
 
 Переменные окружения (опционально):
   A0 — коэффициент A0 в аналитической формуле dA/dt (по умолчанию 1; например export A0=-1).
@@ -44,6 +44,8 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 
 # Выставляется из scripts/run_and_plot.sh вторым аргументом (или вручную: export PARALLEL=true).
+# true: только карты декремента по decrementStore (PNG + интерактивный HTML).
+# false: полный набор графиков без карт декремента по аэрокоэффициентам.
 PARALLEL_ONLY_DECREMENT_MAPS = env_bool("PARALLEL", default=False)
 
 # При генерации PNG: тёмный фон и светлые оси (export PLOT_DARK=true).
@@ -580,112 +582,113 @@ def generate_plots_and_html():
         print(f"Файлы decrement_points*.txt не найдены в {data_dir}")
 
     # ---------- Карты декремента по аэрокоэффициентам decrementStore*.txt ----------
-    # Количество карт также привязываем к активному конфигу.
-    decr_store_files = []
-    if movable_node_ids:
-        for node_id in movable_node_ids:
-            path = data_dir / f"decrementStore{node_id}.txt"
-            if path.exists():
-                decr_store_files.append(path)
-    else:
-        decr_store_files = sorted(data_dir.glob("decrementStore*.txt"))
-    decr_store_has_data = False
+    # Только при PARALLEL=true (nsolv в параллельном режиме); при полном прогоне не строим.
+    if PARALLEL_ONLY_DECREMENT_MAPS:
+        decr_store_files = []
+        if movable_node_ids:
+            for node_id in movable_node_ids:
+                path = data_dir / f"decrementStore{node_id}.txt"
+                if path.exists():
+                    decr_store_files.append(path)
+        else:
+            decr_store_files = sorted(data_dir.glob("decrementStore*.txt"))
+        decr_store_has_data = False
 
-    for path in decr_store_files:
-        bx, fy, delta = load_three_column_txt(path)
-        if bx.size == 0:
-            continue
+        for path in decr_store_files:
+            bx, fy, delta = load_three_column_txt(path)
+            if bx.size == 0:
+                continue
 
-        decr_store_has_data = True
-        # decrementStore{nodeID}.txt -> nodeID
-        node_id = path.stem.replace("decrementStore", "")
-        img_name = f"decrement_map_node{node_id}.png"
+            decr_store_has_data = True
+            # decrementStore{nodeID}.txt -> nodeID
+            node_id = path.stem.replace("decrementStore", "")
+            img_name = f"decrement_map_node{node_id}.png"
 
-        mask_zero_maxs = np.isclose(delta, _DECREMENT_ZERO_MAXS_SENTINEL, rtol=0.0, atol=1e-3)
-        mask_one_max = np.isclose(delta, _DECREMENT_ONE_MAX_SENTINEL, rtol=0.0, atol=1e-3)
-        mask_marker = mask_zero_maxs | mask_one_max
-        bx_col, fy_col, d_col = bx[~mask_marker], fy[~mask_marker], delta[~mask_marker]
-        bx_red, fy_red = bx[mask_zero_maxs], fy[mask_zero_maxs]
-        bx_yel, fy_yel = bx[mask_one_max], fy[mask_one_max]
+            mask_zero_maxs = np.isclose(delta, _DECREMENT_ZERO_MAXS_SENTINEL, rtol=0.0, atol=1e-3)
+            mask_one_max = np.isclose(delta, _DECREMENT_ONE_MAX_SENTINEL, rtol=0.0, atol=1e-3)
+            mask_marker = mask_zero_maxs | mask_one_max
+            bx_col, fy_col, d_col = bx[~mask_marker], fy[~mask_marker], delta[~mask_marker]
+            bx_red, fy_red = bx[mask_zero_maxs], fy[mask_zero_maxs]
+            bx_yel, fy_yel = bx[mask_one_max], fy[mask_one_max]
 
-        plt.figure(figsize=(8, 6))
-        sc = None
-        if bx_col.size > 0:
-            mask_d0 = np.isclose(d_col, 0.0, rtol=0.0, atol=1e-12)
-            vmin, vmax = float(np.min(d_col)), float(np.max(d_col))
-            if not np.isfinite(vmin) or not np.isfinite(vmax):
-                vmin, vmax = 0.0, 1.0
-            if abs(vmax - vmin) < 1e-30:
-                vmax = vmin + 1e-30
-            norm = Normalize(vmin=vmin, vmax=vmax)
-            if np.any(mask_d0):
-                sc = plt.scatter(
-                    bx_col[mask_d0],
-                    fy_col[mask_d0],
-                    c=d_col[mask_d0],
-                    cmap="viridis",
-                    norm=norm,
-                    marker="o",
-                    s=80,
-                    edgecolors="k",
-                    linewidths=0.25,
+            plt.figure(figsize=(8, 6))
+            sc = None
+            if bx_col.size > 0:
+                mask_d0 = np.isclose(d_col, 0.0, rtol=0.0, atol=1e-12)
+                vmin, vmax = float(np.min(d_col)), float(np.max(d_col))
+                if not np.isfinite(vmin) or not np.isfinite(vmax):
+                    vmin, vmax = 0.0, 1.0
+                if abs(vmax - vmin) < 1e-30:
+                    vmax = vmin + 1e-30
+                norm = Normalize(vmin=vmin, vmax=vmax)
+                if np.any(mask_d0):
+                    sc = plt.scatter(
+                        bx_col[mask_d0],
+                        fy_col[mask_d0],
+                        c=d_col[mask_d0],
+                        cmap="viridis",
+                        norm=norm,
+                        marker="o",
+                        s=80,
+                        edgecolors="k",
+                        linewidths=0.25,
+                    )
+                if np.any(~mask_d0):
+                    sc_sq = plt.scatter(
+                        bx_col[~mask_d0],
+                        fy_col[~mask_d0],
+                        c=d_col[~mask_d0],
+                        cmap="viridis",
+                        norm=norm,
+                        marker="s",
+                        s=80,
+                        edgecolors="k",
+                        linewidths=0.25,
+                    )
+                    sc = sc_sq
+            if bx_red.size > 0:
+                plt.scatter(
+                    bx_red,
+                    fy_red,
+                    marker="^",
+                    c="red",
+                    s=110,
+                    edgecolors="darkred",
+                    linewidths=0.45,
+                    zorder=10,
                 )
-            if np.any(~mask_d0):
-                sc_sq = plt.scatter(
-                    bx_col[~mask_d0],
-                    fy_col[~mask_d0],
-                    c=d_col[~mask_d0],
-                    cmap="viridis",
-                    norm=norm,
-                    marker="s",
-                    s=80,
-                    edgecolors="k",
-                    linewidths=0.25,
+            if bx_yel.size > 0:
+                plt.scatter(
+                    bx_yel,
+                    fy_yel,
+                    marker="^",
+                    c="gold",
+                    s=110,
+                    edgecolors="darkgoldenrod",
+                    linewidths=0.45,
+                    zorder=11,
                 )
-                sc = sc_sq
-        if bx_red.size > 0:
-            plt.scatter(
-                bx_red,
-                fy_red,
-                marker="^",
-                c="red",
-                s=110,
-                edgecolors="darkred",
-                linewidths=0.45,
-                zorder=10,
-            )
-        if bx_yel.size > 0:
-            plt.scatter(
-                bx_yel,
-                fy_yel,
-                marker="^",
-                c="gold",
-                s=110,
-                edgecolors="darkgoldenrod",
-                linewidths=0.45,
-                zorder=11,
-            )
-        plt.xlabel("koef1 (forward)")
-        plt.ylabel("koef2 (back)")
-        plt.title(f"Mean decrement map for node {node_id}")
-        plt.grid(True, alpha=0.25)
-        plt.gca().set_aspect("equal", adjustable="box")
-        if sc is not None:
-            cbar = plt.colorbar(sc)
-            cbar.set_label("delta")
-        safe_tight_layout()
+            plt.xlabel("koef1 (forward)")
+            plt.ylabel("koef2 (back)")
+            plt.title(f"Mean decrement map for node {node_id}")
+            plt.grid(True, alpha=0.25)
+            plt.gca().set_aspect("equal", adjustable="box")
+            if sc is not None:
+                cbar = plt.colorbar(sc)
+                cbar.set_label("delta")
+            safe_tight_layout()
 
-        out_map = plots_dir / img_name
-        plt.savefig(out_map, dpi=200)
-        plt.close()
+            out_map = plots_dir / img_name
+            plt.savefig(out_map, dpi=200)
+            plt.close()
 
-        ih = _write_decrement_map_interactive_html(plots_dir, node_id, bx, fy, delta)
-        decr_map_imgs.append((node_id, img_name, ih or ""))
+            ih = _write_decrement_map_interactive_html(plots_dir, node_id, bx, fy, delta)
+            decr_map_imgs.append((node_id, img_name, ih or ""))
 
-    if decr_store_files and not decr_store_has_data:
-        print(f"Файлы decrementStore*.txt найдены, но пустые: {data_dir}")
-    elif not decr_store_files:
-        print(f"Файлы decrementStore*.txt не найдены в {data_dir}")
+        if decr_store_files and not decr_store_has_data:
+            print(f"Файлы decrementStore*.txt найдены, но пустые: {data_dir}")
+        elif not decr_store_files:
+            print(f"Файлы decrementStore*.txt не найдены в {data_dir}")
 
     # ---------- Суммарная энергия sumEnergyPoints.txt ----------
     energy_path = data_dir / "sumEnergyPoints.txt"
@@ -1179,6 +1182,7 @@ def generate_plots_and_html():
   </div>
   '''}
 
+  {f'''
   <div class="block">
     <h2>Карты декремента по аэрокоэффициентам (decrementStore*.txt)</h2>
     {"<p>Файлы не найдены или пусты.</p>" if not decr_map_imgs else "".join(
@@ -1192,6 +1196,7 @@ def generate_plots_and_html():
         for node_id, img_name, ih in decr_map_imgs
     )}
   </div>
+  ''' if PARALLEL_ONLY_DECREMENT_MAPS else ''}
 
   {"" if PARALLEL_ONLY_DECREMENT_MAPS else f'''
   <div class="block">

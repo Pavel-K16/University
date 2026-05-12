@@ -8,8 +8,8 @@ if [ -n "$1" ]; then
     export CONFIG="$1"
 fi
 
-# Второй аргумент — параллельный режим (sweep / только карты декремента в Python).
-# Если не задан — считаем false.
+# Второй аргумент — PARALLEL=true (nsolv sweep): в Python строятся карты decrementStore.
+# При PARALLEL=false эти карты не строятся. Если не задан — false.
 export PARALLEL=false
 if [ -n "$2" ]; then
     lower="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
