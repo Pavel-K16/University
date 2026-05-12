@@ -18,6 +18,10 @@ type maxPoint struct {
 const (
 	decrementDetailsLogPath = "../wolfram/paramsAndPoints/decrement_details.log"
 	decrementPointsFileTmpl = "../wolfram/paramsAndPoints/decrement_points%d.txt"
+	zeroMaxs                = 123456.123456
+	oneMax                  = 1232323.1232323
+	xEqFlatTol              = 1e-6
+	monoXTol                = 1e-12
 )
 
 // equilibriumForNodeFromConfig вычисляет равновесное положение xEq для nodeID,
@@ -96,9 +100,43 @@ func writeDecrementPoints(nodeID int, maxs []maxPoint, skipFirstMaxima int) erro
 	return nil
 }
 
+// xMonotoneNonDecreasing проверяет X по порядку точек в слайсе (обычно это рост времени T).
+func xMonotoneNonDecreasing(points []inmemory.Point, tol float64) bool {
+	for i := 0; i < len(points)-1; i++ {
+		if points[i+1].X < points[i].X-tol {
+			return false
+		}
+	}
+	return true
+}
+
 func EstimateLogDecrementFromGraphPoints(points []inmemory.Point, xEq float64, skipFirstMaxima int) (delta float64, used int, err error) {
 	maxs := FindAmplitudeMaximaInMemory(points, xEq)
 	if len(maxs) < 2 {
+		if len(points) == 0 {
+			return 0, 0, fmt.Errorf("not enough amplitude maxima: maxs=%d (need >=2 oscillation peaks; increase T or reduce damping)", len(maxs))
+		}
+
+		allAtEq := true
+		for _, p := range points {
+			if math.Abs(p.X-xEq) > xEqFlatTol {
+				allAtEq = false
+				break
+			}
+		}
+
+		if allAtEq {
+			return 0, 0, nil
+		}
+
+		if len(maxs) == 0 {
+			return zeroMaxs, 0, nil
+		}
+
+		if len(maxs) == 1 {
+			return oneMax, 0, nil
+		}
+
 		return 0, 0, fmt.Errorf("not enough amplitude maxima: maxs=%d (need >=2 oscillation peaks; increase T or reduce damping)", len(maxs))
 	}
 
@@ -246,8 +284,11 @@ func StoreLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.Point
 		nodePoints := pointsStore.GetPoints(node.ID)
 		delta, _, err := EstimateLogDecrementFromGraphPoints(nodePoints, xEq, skipFirstMaxima)
 		if err != nil {
+			log.Errorf("Error estimating log decrement for node %d: %v", node.ID, err)
+
 			continue
 		}
+
 		decrementStore.AddDecrement(node.ID, f, b, delta)
 	}
 }

@@ -16,6 +16,7 @@
   plots/analytical_dadt.png — аналитика dA/dt по среднему δ (только PARALLEL=false)
   plots/d_amplitudes.png — производная амплитуды из d_amplitude_points*.txt (только PARALLEL=false)
   plots/index.html
+  plots/decrement_map_node*_interactive.html — интерактивные карты декремента (клик по точке)
 
 Переменные окружения (опционально):
   A0 — коэффициент A0 в аналитической формуле dA/dt (по умолчанию 1; например export A0=-1).
@@ -24,12 +25,14 @@
 """
 
 from pathlib import Path
+import html as html_lib
+import json
 import os
 import re
-import json
-import html as html_lib
 
+import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize, to_hex
 import numpy as np
 
 
@@ -47,10 +50,59 @@ PARALLEL_ONLY_DECREMENT_MAPS = env_bool("PARALLEL", default=False)
 PLOT_DARK_EXPORT = env_bool("PLOT_DARK", default=False)
 
 
+# Верхняя граница по модулю для столбцов из txt: отсекаем огромные конечные числа, из‑за которых
+# matplotlib ломается на tight_layout (tick locator / arange).
+_PLOT_COL_ABS_MAX = 1e100
+
+# Совпадают с zeroMaxs и oneMax в internal/numMethods/utils/damping_decrement.go.
+_DECREMENT_ZERO_MAXS_SENTINEL = 123456.123456
+_DECREMENT_ONE_MAX_SENTINEL = 1232323.1232323
+
+
+def _mask_plottable_2cols(c0: np.ndarray, c1: np.ndarray) -> np.ndarray:
+    """Конечные значения и |·| не выше порога — чтобы оси и тики оставались численно устойчивыми."""
+    if c0.size == 0:
+        return np.array([], dtype=bool)
+    lim = _PLOT_COL_ABS_MAX
+    return (
+        np.isfinite(c0)
+        & np.isfinite(c1)
+        & (np.abs(c0) <= lim)
+        & (np.abs(c1) <= lim)
+    )
+
+
+def _mask_plottable_3cols(c0: np.ndarray, c1: np.ndarray, c2: np.ndarray) -> np.ndarray:
+    if c0.size == 0:
+        return np.array([], dtype=bool)
+    lim = _PLOT_COL_ABS_MAX
+    return (
+        np.isfinite(c0)
+        & np.isfinite(c1)
+        & np.isfinite(c2)
+        & (np.abs(c0) <= lim)
+        & (np.abs(c1) <= lim)
+        & (np.abs(c2) <= lim)
+    )
+
+
+def safe_tight_layout() -> None:
+    """tight_layout иногда падает на экстремальных пределах осей — тогда ослабляем разметку."""
+    try:
+        plt.tight_layout()
+    except Exception as ex:
+        print(f"Предупреждение: tight_layout пропущен ({type(ex).__name__}: {ex})")
+        try:
+            plt.subplots_adjust(left=0.10, right=0.96, top=0.92, bottom=0.12)
+        except Exception:
+            pass
+
+
 def load_two_column_txt(path: Path):
     """
     Ожидается файл с двумя столбцами: t, value.
     Возвращает (t, y) как numpy-массивы.
+    Строки с nan/inf или чрезмерно большими |·| в любом столбце отбрасываются.
     """
     if path.stat().st_size == 0:
         return np.array([]), np.array([])
@@ -59,13 +111,17 @@ def load_two_column_txt(path: Path):
         return np.array([]), np.array([])
     if data.ndim == 1:
         data = data[None, :]
-    return data[:, 0], data[:, 1]
+    t = data[:, 0]
+    y = data[:, 1]
+    m = _mask_plottable_2cols(t, y)
+    return t[m], y[m]
 
 
 def load_three_column_txt(path: Path):
     """
     Ожидается файл с тремя столбцами: x, y, value.
     Возвращает (x, y, v) как numpy-массивы.
+    Строки с nan/inf или чрезмерно большими |·| отбрасываются.
     """
     if path.stat().st_size == 0:
         return np.array([]), np.array([]), np.array([])
@@ -74,7 +130,189 @@ def load_three_column_txt(path: Path):
         return np.array([]), np.array([]), np.array([])
     if data.ndim == 1:
         data = data[None, :]
-    return data[:, 0], data[:, 1], data[:, 2]
+    x = data[:, 0]
+    y = data[:, 1]
+    v = data[:, 2]
+    m = _mask_plottable_3cols(x, y, v)
+    return x[m], y[m], v[m]
+
+
+def _viridis_cmap():
+    try:
+        return matplotlib.colormaps["viridis"]
+    except (AttributeError, KeyError):
+        return matplotlib.cm.get_cmap("viridis")
+
+
+def _write_decrement_map_interactive_html(
+    plots_dir: Path,
+    node_id: str,
+    bx: np.ndarray,
+    fy: np.ndarray,
+    delta: np.ndarray,
+) -> str | None:
+    """
+    Автономный HTML+SVG+JS: клик по точке показывает koef1, koef2 и delta.
+    Маркеры и цвета согласованы со статической картой (круг/квадрат/треугольники).
+    """
+    if bx.size == 0:
+        return None
+
+    mask_z = np.isclose(delta, _DECREMENT_ZERO_MAXS_SENTINEL, rtol=0.0, atol=1e-3)
+    mask_o = np.isclose(delta, _DECREMENT_ONE_MAX_SENTINEL, rtol=0.0, atol=1e-3)
+    mask_m = mask_z | mask_o
+    vals = delta[~mask_m]
+    if vals.size > 0:
+        vmin, vmax = float(np.min(vals)), float(np.max(vals))
+    else:
+        vmin, vmax = 0.0, 1.0
+    if not np.isfinite(vmin) or not np.isfinite(vmax):
+        vmin, vmax = 0.0, 1.0
+    if abs(vmax - vmin) < 1e-30:
+        vmax = vmin + 1e-30
+    norm = Normalize(vmin=vmin, vmax=vmax)
+    cmap = _viridis_cmap()
+
+    xmin_d, xmax_d = float(np.min(bx)), float(np.max(bx))
+    ymin_d, ymax_d = float(np.min(fy)), float(np.max(fy))
+    xr = (xmax_d - xmin_d) * 0.5 * 1.1
+    yr = (ymax_d - ymin_d) * 0.5 * 1.1
+    half = max(xr, yr, 0.5)
+    xc = 0.5 * (xmin_d + xmax_d)
+    yc = 0.5 * (ymin_d + ymax_d)
+    xmin_p, xmax_p = xc - half, xc + half
+    ymin_p, ymax_p = yc - half, yc + half
+
+    pts: list[dict] = []
+    for i in range(len(bx)):
+        xi, yi, di = float(bx[i]), float(fy[i]), float(delta[i])
+        if mask_z[i]:
+            pts.append({"x": xi, "y": yi, "d": di, "k": "z"})
+        elif mask_o[i]:
+            pts.append({"x": xi, "y": yi, "d": di, "k": "o"})
+        elif np.isclose(di, 0.0, rtol=0.0, atol=1e-12):
+            pts.append({"x": xi, "y": yi, "d": di, "k": "0", "c": to_hex(cmap(norm(di)))})
+        else:
+            pts.append({"x": xi, "y": yi, "d": di, "k": "s", "c": to_hex(cmap(norm(di)))})
+
+    payload = {
+        "bounds": {
+            "xmin": xmin_p,
+            "xmax": xmax_p,
+            "ymin": ymin_p,
+            "ymax": ymax_p,
+        },
+        "points": pts,
+    }
+    payload_json = json.dumps(payload, ensure_ascii=False)
+
+    fname = f"decrement_map_node{node_id}_interactive.html"
+    out = plots_dir / fname
+
+    node_esc = html_lib.escape(str(node_id))
+    html_tmpl = r"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Карта декремента, узел __NODE__</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; background: #f5f5f5; }
+    h1 { font-size: 1.1rem; }
+    #chart { background: #fff; border: 1px solid #ccc; max-width: 100%; }
+    #info {
+      margin-top: 12px; padding: 12px; background: #fff; border: 1px solid #ccc;
+      min-height: 2.5em; font-family: ui-monospace, monospace; font-size: 0.95rem;
+      white-space: pre-wrap;
+    }
+    .hint { color: #555; font-size: 0.9rem; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Карта декремента (узел __NODE__) — клик по точке</h1>
+  <p class="hint">Круг: δ≈0; квадрат: δ≠0; красный ▲: маркер zeroMaxs; жёлтый ▲: маркер oneMax.</p>
+  <svg id="chart" width="800" height="640" viewBox="0 0 800 640" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="0" width="800" height="600" fill="#fafafa"/>
+    <g id="markers"></g>
+  </svg>
+  <div id="info">Нажмите на точку карты…</div>
+  <script id="payload" type="application/json">__PAYLOAD__</script>
+  <script>
+(function() {
+  const data = JSON.parse(document.getElementById('payload').textContent);
+  const b = data.bounds;
+  const pts = data.points;
+  const marginL = 50, marginT = 30, plotW = 720, plotH = 540;
+  function tx(x) {
+    return marginL + (x - b.xmin) / (b.xmax - b.xmin) * plotW;
+  }
+  function ty(y) {
+    return marginT + plotH - (y - b.ymin) / (b.ymax - b.ymin) * plotH;
+  }
+  const g = document.getElementById('markers');
+  const info = document.getElementById('info');
+
+  function show(p) {
+    info.textContent =
+      'koef1 (forward) = ' + p.x + '\n' +
+      'koef2 (back)    = ' + p.y + '\n' +
+      'delta            = ' + p.d;
+  }
+
+  pts.forEach(function(p) {
+    const cx = tx(p.x), cy = ty(p.y);
+    let el;
+    if (p.k === 'z') {
+      el = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      const h = 14;
+      el.setAttribute('points',
+        (cx) + ',' + (cy - h) + ' ' + (cx - h * 0.9) + ',' + (cy + h * 0.55) + ' ' + (cx + h * 0.9) + ',' + (cy + h * 0.55));
+      el.setAttribute('fill', 'red');
+      el.setAttribute('stroke', '#600');
+      el.setAttribute('stroke-width', '1');
+    } else if (p.k === 'o') {
+      el = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      const h = 14;
+      el.setAttribute('points',
+        (cx) + ',' + (cy - h) + ' ' + (cx - h * 0.9) + ',' + (cy + h * 0.55) + ' ' + (cx + h * 0.9) + ',' + (cy + h * 0.55));
+      el.setAttribute('fill', '#ffd700');
+      el.setAttribute('stroke', '#8b6914');
+      el.setAttribute('stroke-width', '1');
+    } else if (p.k === '0') {
+      el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      el.setAttribute('cx', String(cx));
+      el.setAttribute('cy', String(cy));
+      el.setAttribute('r', '9');
+      el.setAttribute('fill', p.c);
+      el.setAttribute('stroke', '#222');
+      el.setAttribute('stroke-width', '0.6');
+    } else {
+      el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      const w = 16;
+      el.setAttribute('x', String(cx - w/2));
+      el.setAttribute('y', String(cy - w/2));
+      el.setAttribute('width', String(w));
+      el.setAttribute('height', String(w));
+      el.setAttribute('fill', p.c);
+      el.setAttribute('stroke', '#222');
+      el.setAttribute('stroke-width', '0.6');
+    }
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', function(ev) {
+      ev.stopPropagation();
+      show(p);
+    });
+    g.appendChild(el);
+  });
+})();
+  </script>
+</body>
+</html>
+"""
+    html_final = html_tmpl.replace("__NODE__", node_esc).replace("__PAYLOAD__", payload_json)
+
+    out.write_text(html_final, encoding="utf-8")
+    return fname
 
 
 def get_node_ids_from_config(root_dir: Path) -> list[int]:
@@ -259,7 +497,7 @@ def generate_plots_and_html():
         plt.title("Trajectories from graph_points*.txt")
         plt.grid(True, alpha=0.3)
         plt.legend()
-        plt.tight_layout()
+        safe_tight_layout()
 
         out_traj = plots_dir / traj_img_name
         plt.savefig(out_traj, dpi=200)
@@ -297,7 +535,7 @@ def generate_plots_and_html():
         plt.title("Amplitudes from amplitude_points*.txt")
         plt.grid(True, alpha=0.3)
         plt.legend()
-        plt.tight_layout()
+        safe_tight_layout()
 
         out_amp = plots_dir / amp_img_name
         plt.savefig(out_amp, dpi=200)
@@ -333,7 +571,7 @@ def generate_plots_and_html():
         plt.title("Logarithmic decrement per peak pair")
         plt.grid(True, alpha=0.3)
         plt.legend()
-        plt.tight_layout()
+        safe_tight_layout()
 
         out_dec = plots_dir / dec_img_name
         plt.savefig(out_dec, dpi=200)
@@ -363,30 +601,86 @@ def generate_plots_and_html():
         node_id = path.stem.replace("decrementStore", "")
         img_name = f"decrement_map_node{node_id}.png"
 
+        mask_zero_maxs = np.isclose(delta, _DECREMENT_ZERO_MAXS_SENTINEL, rtol=0.0, atol=1e-3)
+        mask_one_max = np.isclose(delta, _DECREMENT_ONE_MAX_SENTINEL, rtol=0.0, atol=1e-3)
+        mask_marker = mask_zero_maxs | mask_one_max
+        bx_col, fy_col, d_col = bx[~mask_marker], fy[~mask_marker], delta[~mask_marker]
+        bx_red, fy_red = bx[mask_zero_maxs], fy[mask_zero_maxs]
+        bx_yel, fy_yel = bx[mask_one_max], fy[mask_one_max]
+
         plt.figure(figsize=(8, 6))
-        sc = plt.scatter(
-            bx,
-            fy,
-            c=delta,
-            cmap="viridis",
-            s=80,
-            edgecolors="k",
-            linewidths=0.25,
-        )
+        sc = None
+        if bx_col.size > 0:
+            mask_d0 = np.isclose(d_col, 0.0, rtol=0.0, atol=1e-12)
+            vmin, vmax = float(np.min(d_col)), float(np.max(d_col))
+            if not np.isfinite(vmin) or not np.isfinite(vmax):
+                vmin, vmax = 0.0, 1.0
+            if abs(vmax - vmin) < 1e-30:
+                vmax = vmin + 1e-30
+            norm = Normalize(vmin=vmin, vmax=vmax)
+            if np.any(mask_d0):
+                sc = plt.scatter(
+                    bx_col[mask_d0],
+                    fy_col[mask_d0],
+                    c=d_col[mask_d0],
+                    cmap="viridis",
+                    norm=norm,
+                    marker="o",
+                    s=80,
+                    edgecolors="k",
+                    linewidths=0.25,
+                )
+            if np.any(~mask_d0):
+                sc_sq = plt.scatter(
+                    bx_col[~mask_d0],
+                    fy_col[~mask_d0],
+                    c=d_col[~mask_d0],
+                    cmap="viridis",
+                    norm=norm,
+                    marker="s",
+                    s=80,
+                    edgecolors="k",
+                    linewidths=0.25,
+                )
+                sc = sc_sq
+        if bx_red.size > 0:
+            plt.scatter(
+                bx_red,
+                fy_red,
+                marker="^",
+                c="red",
+                s=110,
+                edgecolors="darkred",
+                linewidths=0.45,
+                zorder=10,
+            )
+        if bx_yel.size > 0:
+            plt.scatter(
+                bx_yel,
+                fy_yel,
+                marker="^",
+                c="gold",
+                s=110,
+                edgecolors="darkgoldenrod",
+                linewidths=0.45,
+                zorder=11,
+            )
         plt.xlabel("koef1 (forward)")
         plt.ylabel("koef2 (back)")
         plt.title(f"Mean decrement map for node {node_id}")
         plt.grid(True, alpha=0.25)
         plt.gca().set_aspect("equal", adjustable="box")
-        cbar = plt.colorbar(sc)
-        cbar.set_label("delta")
-        plt.tight_layout()
+        if sc is not None:
+            cbar = plt.colorbar(sc)
+            cbar.set_label("delta")
+        safe_tight_layout()
 
         out_map = plots_dir / img_name
         plt.savefig(out_map, dpi=200)
         plt.close()
 
-        decr_map_imgs.append((node_id, img_name))
+        ih = _write_decrement_map_interactive_html(plots_dir, node_id, bx, fy, delta)
+        decr_map_imgs.append((node_id, img_name, ih or ""))
 
     if decr_store_files and not decr_store_has_data:
         print(f"Файлы decrementStore*.txt найдены, но пустые: {data_dir}")
@@ -407,7 +701,7 @@ def generate_plots_and_html():
         plt.title("Sum of kinetic + potential energy")
         plt.grid(True, alpha=0.3)
         plt.legend()
-        plt.tight_layout()
+        safe_tight_layout()
 
         out_energy = plots_dir / energy_img_name
         plt.savefig(out_energy, dpi=200)
@@ -429,7 +723,7 @@ def generate_plots_and_html():
         plt.title("Derivative of total energy")
         plt.grid(True, alpha=0.3)
         plt.legend()
-        plt.tight_layout()
+        safe_tight_layout()
 
         out_dsum_energy = plots_dir / dsum_energy_img_name
         plt.savefig(out_dsum_energy, dpi=200)
@@ -462,7 +756,7 @@ def generate_plots_and_html():
             plt.title("Energy per node (energy_points*.txt)")
             plt.grid(True, alpha=0.3)
             plt.legend()
-            plt.tight_layout()
+            safe_tight_layout()
             plt.savefig(plots_dir / node_energy_img_name, dpi=200)
         plt.close()
     elif not PARALLEL_ONLY_DECREMENT_MAPS and not energy_per_node_files:
@@ -493,7 +787,7 @@ def generate_plots_and_html():
             plt.title("dE/dt per node (d_energy_points*.txt)")
             plt.grid(True, alpha=0.3)
             plt.legend()
-            plt.tight_layout()
+            safe_tight_layout()
             plt.savefig(plots_dir / node_d_energy_img_name, dpi=200)
         plt.close()
     elif not PARALLEL_ONLY_DECREMENT_MAPS and not d_energy_per_node_files:
@@ -559,8 +853,12 @@ def generate_plots_and_html():
             n_pts = max(80, min(4000, int(t_max / max(dt_char * 0.05, 1e-9))))
             t_fine = np.linspace(0.0, t_max, n_pts)
             y = analytical_d_amplitude_dt(t_fine, dbar, dt_char, a0_plot)
+            lim = _PLOT_COL_ABS_MAX
+            m = np.isfinite(t_fine) & np.isfinite(y) & (np.abs(y) <= lim)
+            if not np.any(m):
+                continue
             lbl = f"node {node_id} (δ̄={dbar:.4g}, Δt={dt_char:.4g})"
-            plt.plot(t_fine, y, label=lbl, color=colors[plot_idx % len(colors)])
+            plt.plot(t_fine[m], y[m], label=lbl, color=colors[plot_idx % len(colors)])
             analytical_dadt_has_data = True
             plot_idx += 1
 
@@ -574,7 +872,7 @@ def generate_plots_and_html():
             )
             plt.grid(True, alpha=0.3)
             plt.legend(fontsize=8)
-            plt.tight_layout()
+            safe_tight_layout()
             plt.savefig(plots_dir / analytical_dadt_img_name, dpi=200)
         plt.close()
 
@@ -604,7 +902,7 @@ def generate_plots_and_html():
                 plt.title("dA/dt per node (d_amplitude_points*.txt)")
                 plt.grid(True, alpha=0.3)
                 plt.legend()
-                plt.tight_layout()
+                safe_tight_layout()
                 plt.savefig(plots_dir / d_amp_img_name, dpi=200)
             plt.close()
         else:
@@ -883,7 +1181,16 @@ def generate_plots_and_html():
 
   <div class="block">
     <h2>Карты декремента по аэрокоэффициентам (decrementStore*.txt)</h2>
-    {"<p>Файлы не найдены или пусты.</p>" if not decr_map_imgs else "".join(f'<h3>Узел {html_lib.escape(node_id)}</h3><img src="{html_lib.escape(img_name)}" alt="Decrement map node {html_lib.escape(node_id)}"><br><br>' for node_id, img_name in decr_map_imgs)}
+    {"<p>Файлы не найдены или пусты.</p>" if not decr_map_imgs else "".join(
+        f'<h3>Узел {html_lib.escape(str(node_id))}</h3>'
+        + (
+            f'<p><a href="{html_lib.escape(ih)}" target="_blank" rel="noopener">Интерактивная карта (клик по точке)</a></p>'
+            if ih
+            else ""
+        )
+        + f'<img src="{html_lib.escape(img_name)}" alt="Decrement map node {html_lib.escape(str(node_id))}"><br><br>'
+        for node_id, img_name, ih in decr_map_imgs
+    )}
   </div>
 
   {"" if PARALLEL_ONLY_DECREMENT_MAPS else f'''

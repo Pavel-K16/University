@@ -22,8 +22,8 @@ var (
 )
 
 const (
-	minKoef = -2.0
-	maxKoef = 2.0
+	minKoef = -8.0
+	maxKoef = 8.0
 	step    = 0.1
 )
 
@@ -74,7 +74,7 @@ func main() {
 					defer wg.Done()
 
 					pointsStore := inmemory.NewPointsStore()
-					skipFirst := 2
+					skipFirst := 0
 					solveParallelSweepJob(cnf, t0, T, dt, pointsStore, decrementStore, f, b, skipFirst)
 				}(&wg, cnf, t0, T, dt, decrementStore, f, b)
 			}
@@ -101,7 +101,7 @@ func main() {
 		t0 := cnf.Times.T0
 		dt := cnf.Times.Dt
 
-		b := -1.0
+		b := 2.0
 		f := 1.0
 
 		pointsStore := inmemory.NewPointsStore()
