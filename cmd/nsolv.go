@@ -22,8 +22,8 @@ var (
 )
 
 const (
-	minKoef = -8.0
-	maxKoef = 8.0
+	minKoef = -2.0
+	maxKoef = 2.0
 	step    = 0.1
 )
 
@@ -43,6 +43,8 @@ func main() {
 	nSteps := int(math.Round((maxKoef - minKoef) / step))
 
 	decrementStore := inmemory.NewDecrementStore()
+	frequencyStore := inmemory.NewFrequencyStore()
+
 	if parallelFromEnv() {
 		wg := sync.WaitGroup{}
 
@@ -70,19 +72,25 @@ func main() {
 
 				wg.Add(1)
 
-				go func(wg *sync.WaitGroup, cnf *config.Graph, t0, T, dt float64, decrementStore *inmemory.DecrementStore, f, b float64) {
+				go func(wg *sync.WaitGroup, cnf *config.Graph, t0, T, dt float64, decrementStore *inmemory.DecrementStore, frequencyStore *inmemory.FreqStore, f, b float64) {
 					defer wg.Done()
 
 					pointsStore := inmemory.NewPointsStore()
 					skipFirst := 0
-					solveParallelSweepJob(cnf, t0, T, dt, pointsStore, decrementStore, f, b, skipFirst)
-				}(&wg, cnf, t0, T, dt, decrementStore, f, b)
+					solveParallelSweepJob(cnf, t0, T, dt, pointsStore, decrementStore, frequencyStore, f, b, skipFirst)
+				}(&wg, cnf, t0, T, dt, decrementStore, frequencyStore, f, b)
 			}
 		}
 
 		wg.Wait()
 
 		if err := decrementStore.WriteDecrStoreToFiles(); err != nil {
+			log.Errorf("Error writing decrement store to files: %v", err)
+		} else {
+			log.Info("Decrement store written to files")
+		}
+
+		if err := frequencyStore.WriteFreqStoreToFiles(); err != nil {
 			log.Errorf("Error writing decrement store to files: %v", err)
 		} else {
 			log.Info("Decrement store written to files")
@@ -209,7 +217,7 @@ func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, points
 
 // solveParallelSweepJob один прогон для пары (f,b): интеграция без записи graph_points*
 // и заполнение decrementStore (безопасно при многих горутинах).
-func solveParallelSweepJob(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, decrementStore *inmemory.DecrementStore, f, b float64, skipFirst int) {
+func solveParallelSweepJob(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, decrementStore *inmemory.DecrementStore, frequencyStore *inmemory.FreqStore, f, b float64, skipFirst int) {
 	graph := g.NewGraph()
 
 	if err := g.CreateGraph(graph, cnf); err != nil {
@@ -225,7 +233,7 @@ func solveParallelSweepJob(cnf *config.Graph, t0, T, dt float64, pointsStore *in
 	solver := equationsolver.NewGraphSolver(graph, dt)
 
 	simulatePointsInMemory(solver, graph, t0, T, dt, pointsStore)
-	utils.StoreLogDecrementForAllNodes(cnf, pointsStore, skipFirst, decrementStore, f, b)
+	utils.StoreLogDecrementForAllNodes(cnf, pointsStore, skipFirst, decrementStore, frequencyStore, f, b)
 }
 
 func simulatePointsInMemory(solver *equationsolver.GraphSolver, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore) {

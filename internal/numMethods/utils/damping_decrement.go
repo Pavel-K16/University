@@ -269,7 +269,7 @@ func PrintLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.Point
 
 // StoreLogDecrementForAllNodes считает средний декремент по подвижным узлам
 // и сохраняет в decrementStore без записи decrement_points / decrement_details.log и без вывода в консоль.
-func StoreLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.PointsStore, skipFirstMaxima int, decrementStore *inmemory.DecrementStore, f, b float64) {
+func StoreLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.PointsStore, skipFirstMaxima int, decrementStore *inmemory.DecrementStore, frequencyStore *inmemory.FreqStore, f, b float64) {
 	if cnf == nil || pointsStore == nil || decrementStore == nil {
 		return
 	}
@@ -289,6 +289,48 @@ func StoreLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.Point
 			continue
 		}
 
+		maxs := FindAmplitudeMaximaInMemory(nodePoints, xEq)
+
+		freqKoefs := GetAvgFrequency4Nodes(node.ID, maxs, f, b)
+
+		frequencyStore.AddFreq(node.ID, freqKoefs.Koef1, freqKoefs.Koef2, freqKoefs.Freq)
+
 		decrementStore.AddDecrement(node.ID, f, b, delta)
+	}
+}
+
+func GetAvgFrequency4Nodes(nodeID int, maxs []maxPoint, f, b float64) inmemory.FreqAeroKoef {
+	w := 0.0
+	n := 0.0
+
+	for i := 0; i < len(maxs)-1; {
+		t1 := maxs[i].t
+		if i+2 >= len(maxs) {
+			break
+		}
+
+		t2 := maxs[i+2].t
+		dt := t2 - t1
+		if dt > 0 {
+			freq := 1 / dt
+			w += freq
+			n += 1.0
+		}
+		i += 2
+	}
+
+	if n == 0 {
+		//log.Infof("No frequencies found for node %d", nodeID)
+		return inmemory.FreqAeroKoef{
+			Koef1: f,
+			Koef2: b,
+			Freq:  zeroMaxs,
+		}
+	}
+
+	return inmemory.FreqAeroKoef{
+		Koef1: f,
+		Koef2: b,
+		Freq:  w / n,
 	}
 }
