@@ -324,7 +324,7 @@ func GetAvgFrequency4Nodes(nodeID int, maxs []maxPoint, f, b float64) inmemory.F
 		return inmemory.FreqAeroKoef{
 			Koef1: f,
 			Koef2: b,
-			Freq:  zeroMaxs,
+			Freq:  0.0,
 		}
 	}
 

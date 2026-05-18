@@ -91,9 +91,9 @@ func main() {
 		}
 
 		if err := frequencyStore.WriteFreqStoreToFiles(); err != nil {
-			log.Errorf("Error writing decrement store to files: %v", err)
+			log.Errorf("Error writing frequency store to files: %v", err)
 		} else {
-			log.Info("Decrement store written to files")
+			log.Info("Frequency store written to files")
 		}
 
 	} else {

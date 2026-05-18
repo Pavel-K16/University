@@ -8,7 +8,7 @@ if [ -n "$1" ]; then
     export CONFIG="$1"
 fi
 
-# Второй аргумент — PARALLEL=true (nsolv sweep): в Python строятся карты decrementStore.
+# Второй аргумент — PARALLEL=true (nsolv sweep): в Python строятся карты decrementStore и freqStore.
 # При PARALLEL=false эти карты не строятся. Если не задан — false.
 export PARALLEL=false
 if [ -n "$2" ]; then

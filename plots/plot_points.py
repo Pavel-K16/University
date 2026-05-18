@@ -17,6 +17,7 @@
   plots/d_amplitudes.png — производная амплитуды из d_amplitude_points*.txt (только PARALLEL=false)
   plots/index.html
   plots/decrement_map_node*.png, plots/decrement_map_node*_interactive.html — только при PARALLEL=true
+  plots/frequency_map_node*.png, plots/frequency_map_node*_interactive.html — только при PARALLEL=true
 
 Переменные окружения (опционально):
   A0 — коэффициент A0 в аналитической формуле dA/dt (по умолчанию 1; например export A0=-1).
@@ -44,8 +45,8 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 
 # Выставляется из scripts/run_and_plot.sh вторым аргументом (или вручную: export PARALLEL=true).
-# true: только карты декремента по decrementStore (PNG + интерактивный HTML).
-# false: полный набор графиков без карт декремента по аэрокоэффициентам.
+# true: карты декремента (decrementStore) и частоты (freqStore): PNG + интерактивный HTML.
+# false: полный набор графиков без карт по аэрокоэффициентам.
 PARALLEL_ONLY_DECREMENT_MAPS = env_bool("PARALLEL", default=False)
 
 # При генерации PNG: тёмный фон и светлые оси (export PLOT_DARK=true).
@@ -57,8 +58,10 @@ PLOT_DARK_EXPORT = env_bool("PLOT_DARK", default=False)
 _PLOT_COL_ABS_MAX = 1e100
 
 # Совпадают с zeroMaxs и oneMax в internal/numMethods/utils/damping_decrement.go.
-_DECREMENT_ZERO_MAXS_SENTINEL = 123456.123456
-_DECREMENT_ONE_MAX_SENTINEL = 1232323.1232323
+_AERO_ZERO_MAXS_SENTINEL = 123456.123456
+_AERO_ONE_MAX_SENTINEL = 1232323.1232323
+_DECREMENT_ZERO_MAXS_SENTINEL = _AERO_ZERO_MAXS_SENTINEL
+_DECREMENT_ONE_MAX_SENTINEL = _AERO_ONE_MAX_SENTINEL
 
 
 def _mask_plottable_2cols(c0: np.ndarray, c1: np.ndarray) -> np.ndarray:
@@ -146,24 +149,34 @@ def _viridis_cmap():
         return matplotlib.cm.get_cmap("viridis")
 
 
-def _write_decrement_map_interactive_html(
+def _aero_map_sentinel_masks(values: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    mask_z = np.isclose(values, _AERO_ZERO_MAXS_SENTINEL, rtol=0.0, atol=1e-3)
+    mask_o = np.isclose(values, _AERO_ONE_MAX_SENTINEL, rtol=0.0, atol=1e-3)
+    return mask_z, mask_o, mask_z | mask_o
+
+
+def _write_aero_map_interactive_html(
     plots_dir: Path,
     node_id: str,
     bx: np.ndarray,
     fy: np.ndarray,
-    delta: np.ndarray,
+    values: np.ndarray,
+    *,
+    file_stem: str,
+    page_title: str,
+    hint_html: str,
+    value_label: str,
+    distinguish_zero: bool,
 ) -> str | None:
     """
-    Автономный HTML+SVG+JS: клик по точке показывает koef1, koef2 и delta.
+    Автономный HTML+SVG+JS: клик по точке показывает koef1, koef2 и значение карты.
     Маркеры и цвета согласованы со статической картой (круг/квадрат/треугольники).
     """
     if bx.size == 0:
         return None
 
-    mask_z = np.isclose(delta, _DECREMENT_ZERO_MAXS_SENTINEL, rtol=0.0, atol=1e-3)
-    mask_o = np.isclose(delta, _DECREMENT_ONE_MAX_SENTINEL, rtol=0.0, atol=1e-3)
-    mask_m = mask_z | mask_o
-    vals = delta[~mask_m]
+    mask_z, mask_o, mask_m = _aero_map_sentinel_masks(values)
+    vals = values[~mask_m]
     if vals.size > 0:
         vmin, vmax = float(np.min(vals)), float(np.max(vals))
     else:
@@ -187,15 +200,15 @@ def _write_decrement_map_interactive_html(
 
     pts: list[dict] = []
     for i in range(len(bx)):
-        xi, yi, di = float(bx[i]), float(fy[i]), float(delta[i])
+        xi, yi, vi = float(bx[i]), float(fy[i]), float(values[i])
         if mask_z[i]:
-            pts.append({"x": xi, "y": yi, "d": di, "k": "z"})
+            pts.append({"x": xi, "y": yi, "d": vi, "k": "z"})
         elif mask_o[i]:
-            pts.append({"x": xi, "y": yi, "d": di, "k": "o"})
-        elif np.isclose(di, 0.0, rtol=0.0, atol=1e-12):
-            pts.append({"x": xi, "y": yi, "d": di, "k": "0", "c": to_hex(cmap(norm(di)))})
+            pts.append({"x": xi, "y": yi, "d": vi, "k": "o"})
+        elif distinguish_zero and np.isclose(vi, 0.0, rtol=0.0, atol=1e-12):
+            pts.append({"x": xi, "y": yi, "d": vi, "k": "0", "c": to_hex(cmap(norm(vi)))})
         else:
-            pts.append({"x": xi, "y": yi, "d": di, "k": "s", "c": to_hex(cmap(norm(di)))})
+            pts.append({"x": xi, "y": yi, "d": vi, "k": "s", "c": to_hex(cmap(norm(vi)))})
 
     payload = {
         "bounds": {
@@ -204,20 +217,23 @@ def _write_decrement_map_interactive_html(
             "ymin": ymin_p,
             "ymax": ymax_p,
         },
+        "valueLabel": value_label,
         "points": pts,
     }
     payload_json = json.dumps(payload, ensure_ascii=False)
 
-    fname = f"decrement_map_node{node_id}_interactive.html"
+    fname = f"{file_stem}_node{node_id}_interactive.html"
     out = plots_dir / fname
 
     node_esc = html_lib.escape(str(node_id))
+    page_title_esc = html_lib.escape(page_title)
+    hint_esc = hint_html
     html_tmpl = r"""<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Карта декремента, узел __NODE__</title>
+  <title>__PAGE_TITLE__</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 16px; background: #f5f5f5; }
     h1 { font-size: 1.1rem; }
@@ -231,8 +247,8 @@ def _write_decrement_map_interactive_html(
   </style>
 </head>
 <body>
-  <h1>Карта декремента (узел __NODE__) — клик по точке</h1>
-  <p class="hint">Круг: δ≈0; квадрат: δ≠0; красный ▲: маркер zeroMaxs; жёлтый ▲: маркер oneMax.</p>
+  <h1>__PAGE_TITLE__ (узел __NODE__) — клик по точке</h1>
+  <p class="hint">__HINT__</p>
   <svg id="chart" width="800" height="640" viewBox="0 0 800 640" xmlns="http://www.w3.org/2000/svg">
     <rect x="0" y="0" width="800" height="600" fill="#fafafa"/>
     <g id="markers"></g>
@@ -254,11 +270,12 @@ def _write_decrement_map_interactive_html(
   const g = document.getElementById('markers');
   const info = document.getElementById('info');
 
+  const valueLabel = data.valueLabel || 'value';
   function show(p) {
     info.textContent =
       'koef1 (forward) = ' + p.x + '\n' +
       'koef2 (back)    = ' + p.y + '\n' +
-      'delta            = ' + p.d;
+      valueLabel + ' = ' + p.d;
   }
 
   pts.forEach(function(p) {
@@ -311,10 +328,154 @@ def _write_decrement_map_interactive_html(
 </body>
 </html>
 """
-    html_final = html_tmpl.replace("__NODE__", node_esc).replace("__PAYLOAD__", payload_json)
+    html_final = (
+        html_tmpl.replace("__PAGE_TITLE__", page_title_esc)
+        .replace("__NODE__", node_esc)
+        .replace("__HINT__", hint_esc)
+        .replace("__PAYLOAD__", payload_json)
+    )
 
     out.write_text(html_final, encoding="utf-8")
     return fname
+
+
+def _html_aero_maps_section(title: str, empty_msg: str, map_imgs: list[tuple]) -> str:
+    if not map_imgs:
+        return f"<p>{html_lib.escape(empty_msg)}</p>"
+    parts = []
+    for node_id, img_name, ih in map_imgs:
+        parts.append(f"<h3>Узел {html_lib.escape(str(node_id))}</h3>")
+        if ih:
+            parts.append(
+                f'<p><a href="{html_lib.escape(ih)}" target="_blank" rel="noopener">'
+                "Интерактивная карта (клик по точке)</a></p>"
+            )
+        parts.append(
+            f'<img src="{html_lib.escape(img_name)}" '
+            f'alt="{html_lib.escape(title)} node {html_lib.escape(str(node_id))}"><br><br>'
+        )
+    return "".join(parts)
+
+
+def build_aero_coef_map(
+    plots_dir: Path,
+    node_id: str,
+    bx: np.ndarray,
+    fy: np.ndarray,
+    values: np.ndarray,
+    *,
+    file_stem: str,
+    plot_title: str,
+    cbar_label: str,
+    interactive_page_title: str,
+    interactive_hint: str,
+    interactive_value_label: str,
+    distinguish_zero: bool,
+) -> tuple[str, str | None]:
+    """PNG + интерактивная HTML-карта по сетке (koef1, koef2) → value."""
+    img_name = f"{file_stem}_node{node_id}.png"
+
+    mask_zero_maxs, mask_one_max, mask_marker = _aero_map_sentinel_masks(values)
+    bx_col, fy_col, v_col = bx[~mask_marker], fy[~mask_marker], values[~mask_marker]
+    bx_red, fy_red = bx[mask_zero_maxs], fy[mask_zero_maxs]
+    bx_yel, fy_yel = bx[mask_one_max], fy[mask_one_max]
+
+    plt.figure(figsize=(8, 6))
+    sc = None
+    if bx_col.size > 0:
+        vmin, vmax = float(np.min(v_col)), float(np.max(v_col))
+        if not np.isfinite(vmin) or not np.isfinite(vmax):
+            vmin, vmax = 0.0, 1.0
+        if abs(vmax - vmin) < 1e-30:
+            vmax = vmin + 1e-30
+        norm = Normalize(vmin=vmin, vmax=vmax)
+        if distinguish_zero:
+            mask_v0 = np.isclose(v_col, 0.0, rtol=0.0, atol=1e-12)
+            if np.any(mask_v0):
+                sc = plt.scatter(
+                    bx_col[mask_v0],
+                    fy_col[mask_v0],
+                    c=v_col[mask_v0],
+                    cmap="viridis",
+                    norm=norm,
+                    marker="o",
+                    s=80,
+                    edgecolors="k",
+                    linewidths=0.25,
+                )
+            if np.any(~mask_v0):
+                sc_sq = plt.scatter(
+                    bx_col[~mask_v0],
+                    fy_col[~mask_v0],
+                    c=v_col[~mask_v0],
+                    cmap="viridis",
+                    norm=norm,
+                    marker="s",
+                    s=80,
+                    edgecolors="k",
+                    linewidths=0.25,
+                )
+                sc = sc_sq
+        else:
+            sc = plt.scatter(
+                bx_col,
+                fy_col,
+                c=v_col,
+                cmap="viridis",
+                norm=norm,
+                marker="s",
+                s=80,
+                edgecolors="k",
+                linewidths=0.25,
+            )
+    if bx_red.size > 0:
+        plt.scatter(
+            bx_red,
+            fy_red,
+            marker="^",
+            c="red",
+            s=110,
+            edgecolors="darkred",
+            linewidths=0.45,
+            zorder=10,
+        )
+    if bx_yel.size > 0:
+        plt.scatter(
+            bx_yel,
+            fy_yel,
+            marker="^",
+            c="gold",
+            s=110,
+            edgecolors="darkgoldenrod",
+            linewidths=0.45,
+            zorder=11,
+        )
+    plt.xlabel("koef1 (forward)")
+    plt.ylabel("koef2 (back)")
+    plt.title(plot_title)
+    plt.grid(True, alpha=0.25)
+    plt.gca().set_aspect("equal", adjustable="box")
+    if sc is not None:
+        cbar = plt.colorbar(sc)
+        cbar.set_label(cbar_label)
+    safe_tight_layout()
+
+    plt.savefig(plots_dir / img_name, dpi=200)
+    plt.close()
+
+    ih = _write_aero_map_interactive_html(
+        plots_dir,
+        node_id,
+        bx,
+        fy,
+        values,
+        file_stem=file_stem,
+        page_title=interactive_page_title,
+        hint_html=interactive_hint,
+        value_label=interactive_value_label,
+        distinguish_zero=distinguish_zero,
+    )
+    return img_name, ih
 
 
 def get_node_ids_from_config(root_dir: Path) -> list[int]:
@@ -478,6 +639,7 @@ def generate_plots_and_html():
     d_amp_img_name = "d_amplitudes.png"
     dec_img_name = "decrement_deltas.png"
     decr_map_imgs = []
+    freq_map_imgs = []
     energy_per_node_has_data = False
     d_energy_per_node_has_data = False
     analytical_dadt_has_data = False
@@ -581,8 +743,7 @@ def generate_plots_and_html():
     elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файлы decrement_points*.txt не найдены в {data_dir}")
 
-    # ---------- Карты декремента по аэрокоэффициентам decrementStore*.txt ----------
-    # Только при PARALLEL=true (nsolv в параллельном режиме); при полном прогоне не строим.
+    # ---------- Карты декремента и частоты по аэрокоэффициентам (PARALLEL=true) ----------
     if PARALLEL_ONLY_DECREMENT_MAPS:
         decr_store_files = []
         if movable_node_ids:
@@ -600,95 +761,70 @@ def generate_plots_and_html():
                 continue
 
             decr_store_has_data = True
-            # decrementStore{nodeID}.txt -> nodeID
             node_id = path.stem.replace("decrementStore", "")
-            img_name = f"decrement_map_node{node_id}.png"
-
-            mask_zero_maxs = np.isclose(delta, _DECREMENT_ZERO_MAXS_SENTINEL, rtol=0.0, atol=1e-3)
-            mask_one_max = np.isclose(delta, _DECREMENT_ONE_MAX_SENTINEL, rtol=0.0, atol=1e-3)
-            mask_marker = mask_zero_maxs | mask_one_max
-            bx_col, fy_col, d_col = bx[~mask_marker], fy[~mask_marker], delta[~mask_marker]
-            bx_red, fy_red = bx[mask_zero_maxs], fy[mask_zero_maxs]
-            bx_yel, fy_yel = bx[mask_one_max], fy[mask_one_max]
-
-            plt.figure(figsize=(8, 6))
-            sc = None
-            if bx_col.size > 0:
-                mask_d0 = np.isclose(d_col, 0.0, rtol=0.0, atol=1e-12)
-                vmin, vmax = float(np.min(d_col)), float(np.max(d_col))
-                if not np.isfinite(vmin) or not np.isfinite(vmax):
-                    vmin, vmax = 0.0, 1.0
-                if abs(vmax - vmin) < 1e-30:
-                    vmax = vmin + 1e-30
-                norm = Normalize(vmin=vmin, vmax=vmax)
-                if np.any(mask_d0):
-                    sc = plt.scatter(
-                        bx_col[mask_d0],
-                        fy_col[mask_d0],
-                        c=d_col[mask_d0],
-                        cmap="viridis",
-                        norm=norm,
-                        marker="o",
-                        s=80,
-                        edgecolors="k",
-                        linewidths=0.25,
-                    )
-                if np.any(~mask_d0):
-                    sc_sq = plt.scatter(
-                        bx_col[~mask_d0],
-                        fy_col[~mask_d0],
-                        c=d_col[~mask_d0],
-                        cmap="viridis",
-                        norm=norm,
-                        marker="s",
-                        s=80,
-                        edgecolors="k",
-                        linewidths=0.25,
-                    )
-                    sc = sc_sq
-            if bx_red.size > 0:
-                plt.scatter(
-                    bx_red,
-                    fy_red,
-                    marker="^",
-                    c="red",
-                    s=110,
-                    edgecolors="darkred",
-                    linewidths=0.45,
-                    zorder=10,
-                )
-            if bx_yel.size > 0:
-                plt.scatter(
-                    bx_yel,
-                    fy_yel,
-                    marker="^",
-                    c="gold",
-                    s=110,
-                    edgecolors="darkgoldenrod",
-                    linewidths=0.45,
-                    zorder=11,
-                )
-            plt.xlabel("koef1 (forward)")
-            plt.ylabel("koef2 (back)")
-            plt.title(f"Mean decrement map for node {node_id}")
-            plt.grid(True, alpha=0.25)
-            plt.gca().set_aspect("equal", adjustable="box")
-            if sc is not None:
-                cbar = plt.colorbar(sc)
-                cbar.set_label("delta")
-            safe_tight_layout()
-
-            out_map = plots_dir / img_name
-            plt.savefig(out_map, dpi=200)
-            plt.close()
-
-            ih = _write_decrement_map_interactive_html(plots_dir, node_id, bx, fy, delta)
+            img_name, ih = build_aero_coef_map(
+                plots_dir,
+                node_id,
+                bx,
+                fy,
+                delta,
+                file_stem="decrement_map",
+                plot_title=f"Mean decrement map for node {node_id}",
+                cbar_label="delta",
+                interactive_page_title="Карта декремента",
+                interactive_hint=(
+                    "Круг: δ≈0; квадрат: δ≠0; красный ▲: маркер zeroMaxs; жёлтый ▲: маркер oneMax."
+                ),
+                interactive_value_label="delta",
+                distinguish_zero=True,
+            )
             decr_map_imgs.append((node_id, img_name, ih or ""))
 
         if decr_store_files and not decr_store_has_data:
             print(f"Файлы decrementStore*.txt найдены, но пустые: {data_dir}")
         elif not decr_store_files:
             print(f"Файлы decrementStore*.txt не найдены в {data_dir}")
+
+        freq_store_files = []
+        if movable_node_ids:
+            for node_id in movable_node_ids:
+                path = data_dir / f"freqStore{node_id}.txt"
+                if path.exists():
+                    freq_store_files.append(path)
+        else:
+            freq_store_files = sorted(data_dir.glob("freqStore*.txt"))
+        freq_store_has_data = False
+
+        for path in freq_store_files:
+            bx, fy, freq = load_three_column_txt(path)
+            if bx.size == 0:
+                continue
+
+            freq_store_has_data = True
+            node_id = path.stem.replace("freqStore", "")
+            img_name, ih = build_aero_coef_map(
+                plots_dir,
+                node_id,
+                bx,
+                fy,
+                freq,
+                file_stem="frequency_map",
+                plot_title=f"Mean frequency map for node {node_id}",
+                cbar_label="frequency (1/s)",
+                interactive_page_title="Карта частоты",
+                interactive_hint=(
+                    "Квадрат: рассчитанная частота; красный ▲: нет данных (zeroMaxs); "
+                    "жёлтый ▲: маркер oneMax (если встретился в данных)."
+                ),
+                interactive_value_label="frequency",
+                distinguish_zero=False,
+            )
+            freq_map_imgs.append((node_id, img_name, ih or ""))
+
+        if freq_store_files and not freq_store_has_data:
+            print(f"Файлы freqStore*.txt найдены, но пустые: {data_dir}")
+        elif not freq_store_files:
+            print(f"Файлы freqStore*.txt не найдены в {data_dir}")
 
     # ---------- Суммарная энергия sumEnergyPoints.txt ----------
     energy_path = data_dir / "sumEnergyPoints.txt"
@@ -1185,15 +1321,19 @@ def generate_plots_and_html():
   {f'''
   <div class="block">
     <h2>Карты декремента по аэрокоэффициентам (decrementStore*.txt)</h2>
-    {"<p>Файлы не найдены или пусты.</p>" if not decr_map_imgs else "".join(
-        f'<h3>Узел {html_lib.escape(str(node_id))}</h3>'
-        + (
-            f'<p><a href="{html_lib.escape(ih)}" target="_blank" rel="noopener">Интерактивная карта (клик по точке)</a></p>'
-            if ih
-            else ""
-        )
-        + f'<img src="{html_lib.escape(img_name)}" alt="Decrement map node {html_lib.escape(str(node_id))}"><br><br>'
-        for node_id, img_name, ih in decr_map_imgs
+    {_html_aero_maps_section(
+        "Decrement map",
+        "Файлы не найдены или пусты.",
+        decr_map_imgs,
+    )}
+  </div>
+
+  <div class="block">
+    <h2>Карты частоты по аэрокоэффициентам (freqStore*.txt)</h2>
+    {_html_aero_maps_section(
+        "Frequency map",
+        "Файлы не найдены или пусты.",
+        freq_map_imgs,
     )}
   </div>
   ''' if PARALLEL_ONLY_DECREMENT_MAPS else ''}

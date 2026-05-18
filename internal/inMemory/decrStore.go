@@ -49,7 +49,12 @@ func (s *DecrementStore) WriteDecrStoreToFiles() error {
 		}
 
 		for _, d := range decrements {
-			if _, err := fmt.Fprintf(f, "%f %f %f\n", d.koef1, d.koef2, d.decrement); err != nil {
+			decr := d.decrement
+			if decr < 0.1 && decr > -0.1 {
+				decr = 0.0
+			}
+
+			if _, err := fmt.Fprintf(f, "%f %f %f\n", d.koef1, d.koef2, decr); err != nil {
 				_ = f.Close()
 				return fmt.Errorf("write decrement for node %d: %w", nodeID, err)
 			}
