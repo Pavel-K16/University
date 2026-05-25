@@ -41,6 +41,7 @@ func main() {
 	start := time.Now()
 
 	nSteps := int(math.Round((maxKoef - minKoef) / step))
+	skipFirst := utils.SkipFirstMaxima()
 
 	decrementStore := inmemory.NewDecrementStore()
 	frequencyStore := inmemory.NewFrequencyStore()
@@ -76,7 +77,6 @@ func main() {
 					defer wg.Done()
 
 					pointsStore := inmemory.NewPointsStore()
-					skipFirst := 0
 					solveParallelSweepJob(cnf, t0, T, dt, pointsStore, decrementStore, frequencyStore, f, b, skipFirst)
 				}(&wg, cnf, t0, T, dt, decrementStore, frequencyStore, f, b)
 			}
@@ -109,8 +109,8 @@ func main() {
 		t0 := cnf.Times.T0
 		dt := cnf.Times.Dt
 
-		b := -0.2
-		f := -0.2
+		b := 0.4
+		f := 0.4
 
 		pointsStore := inmemory.NewPointsStore()
 		amplitudeStore := inmemory.NewAmplitudeStore()
@@ -118,7 +118,7 @@ func main() {
 
 		graph := g.NewGraph()
 
-		solveWithGraph(cnf, graph, t0, T, dt, pointsStore, amplitudeStore, decrementStore, energyStore, f, b)
+		solveWithGraph(cnf, graph, t0, T, dt, pointsStore, amplitudeStore, decrementStore, energyStore, f, b, skipFirst)
 
 		if err := energyStore.WriteEnergyStoreToFiles(graph.NodesNumbers()); err != nil {
 			log.Errorf("Error writing energy store to files: %v", err)
@@ -132,60 +132,13 @@ func main() {
 			log.Info("Amplitude store written to files")
 		}
 
-		freqs := GetAvgFrequency4Nodes(graph, amplitudeStore)
-		for _, freq := range freqs {
-			log.Infof("Frequency for node %d: %f", freq.NodeID, freq.Freq)
-		}
+		utils.LogFrequencySummary(cnf, pointsStore, skipFirst, f, b)
 	}
 
 	log.Infof("Time taken: %v", time.Since(start))
 }
 
-type W struct {
-	NodeID int
-	Freq   float64
-}
-
-func GetAvgFrequency4Nodes(g *g.Graph, amplitudeStore *inmemory.AmplitudeStore) []W {
-
-	freqs := make([]W, 0)
-
-	for _, node := range g.Nodes {
-		w := 0.0
-		n := 0.0
-
-		if node.IsFixed {
-			continue
-		}
-		amplitudes := amplitudeStore.GetAmplitudes(node.ID)
-		if len(amplitudes) < 2 {
-			continue
-		}
-
-		for i := 0; i < len(amplitudes)-1; {
-			t1 := amplitudes[i].T
-			t2 := amplitudes[i+2].T
-			dt := t2 - t1
-			if dt > 0 {
-				freq := 1 / dt
-				w += freq
-				n += 1.0
-			}
-			i += 2
-		}
-		if n == 0 {
-			log.Infof("No frequencies found for node %d", node.ID)
-
-			continue
-		}
-
-		freqs = append(freqs, W{NodeID: node.ID, Freq: w / n})
-	}
-
-	return freqs
-}
-
-func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, amplitudeStore *inmemory.AmplitudeStore, decrementStore *inmemory.DecrementStore, energyStore *inmemory.EnergyStore, f, b float64) {
+func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, amplitudeStore *inmemory.AmplitudeStore, decrementStore *inmemory.DecrementStore, energyStore *inmemory.EnergyStore, f, b float64, skipFirst int) {
 	fmt.Println("\n=== Решение задачи о метрономах через графовую систему ===")
 	fmt.Printf("Начальные условия: t=0\n")
 	fmt.Printf("Диапазон расчёта: t=[%.2f, %.2f], dt=%.4f\n", t0, T, dt)
@@ -204,11 +157,8 @@ func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, points
 
 	solver := equationsolver.NewGraphSolver(graph, dt)
 
-	skipFirst := 2 // сколько первых максимумов амплитуды пропускаем для посчёта декремента
-
 	iofile.WriteGraphPointsToFiles(solver, graph, t0, T, dt, pointsStore, energyStore)
-	ampSkipFirst := 2 // сколько первых аплитуд скипаем
-	if err := utils.WriteAmplitudePointsFromGraphFiles(cnf, pointsStore, amplitudeStore, ampSkipFirst); err != nil {
+	if err := utils.WriteAmplitudePointsFromGraphFiles(cnf, pointsStore, amplitudeStore, skipFirst); err != nil {
 		log.Errorf("Error writing amplitude points: %v", err)
 	}
 

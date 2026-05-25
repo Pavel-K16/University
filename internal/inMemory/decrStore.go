@@ -50,9 +50,9 @@ func (s *DecrementStore) WriteDecrStoreToFiles() error {
 
 		for _, d := range decrements {
 			decr := d.decrement
-			if decr < 0.1 && decr > -0.1 {
-				decr = 0.0
-			}
+			// if decr < 0.1 && decr > -0.1 {
+			// 	decr = 0
+			// }
 
 			if _, err := fmt.Fprintf(f, "%f %f %f\n", d.koef1, d.koef2, decr); err != nil {
 				_ = f.Close()

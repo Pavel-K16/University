@@ -291,7 +291,7 @@ func StoreLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.Point
 
 		maxs := FindAmplitudeMaximaInMemory(nodePoints, xEq)
 
-		freqKoefs := GetAvgFrequency4Nodes(node.ID, maxs, f, b)
+		freqKoefs := GetAvgFrequency4Nodes(node.ID, maxs, skipFirstMaxima, f, b)
 
 		frequencyStore.AddFreq(node.ID, freqKoefs.Koef1, freqKoefs.Koef2, freqKoefs.Freq)
 
@@ -299,16 +299,24 @@ func StoreLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.Point
 	}
 }
 
-func GetAvgFrequency4Nodes(nodeID int, maxs []maxPoint, f, b float64) inmemory.FreqAeroKoef {
+func GetAvgFrequency4Nodes(nodeID int, maxs []maxPoint, skipFirstMaxima int, f, b float64) inmemory.FreqAeroKoef {
 	w := 0.0
 	n := 0.0
 
-	for i := 0; i < len(maxs)-1; {
-		t1 := maxs[i].t
+	start := skipFirstMaxima
+	if start > len(maxs)-2 {
+		start = len(maxs) - 2
+	}
+	if start < 0 {
+		start = 0
+	}
+
+	for i := start; i < len(maxs)-1; {
 		if i+2 >= len(maxs) {
 			break
 		}
 
+		t1 := maxs[i].t
 		t2 := maxs[i+2].t
 		dt := t2 - t1
 		if dt > 0 {

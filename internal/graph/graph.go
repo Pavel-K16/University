@@ -166,6 +166,11 @@ func (g *Graph) NetForce(nodeID int) float64 {
 	var force float64 = 0.0
 
 	for _, edge := range node.Edges {
+		if edge.TargetID == nodeID {
+			log.Debugf("Edge from %d to %d is self-loop", nodeID, edge.TargetID)
+			continue
+		}
+
 		targetNode := g.Nodes[edge.TargetID]
 		if targetNode == nil {
 			continue
@@ -287,6 +292,10 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 	}
 
 	for _, edge := range node.Edges {
+		if edge.TargetID == nodeID {
+			continue
+		}
+
 		targetNode := g.Nodes[edge.TargetID]
 		if targetNode == nil || targetNode.IsFixed {
 			continue
@@ -332,14 +341,19 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 				eq = g.equilibriumPosition(edge.TargetID)
 			}
 			delta := pos - eq
-			aeroDinamicForce += aeroKoef * delta
+			aeroDinamicForce += aeroKoef * delta //+ aeroKoef*targetNode.Velocity
 		} else {
 			pos := targetNode.Position
 			eq := g.equilibriumPosition(edge.TargetID)
 			delta := pos - eq
-			aeroDinamicForce += aeroKoef * delta
+			aeroDinamicForce += aeroKoef * delta //+ aeroKoef*targetNode.Velocity
 		}
 	}
+
+	// eqSelf := g.equilibriumPosition(nodeID)
+	// deltaSelf := node.Position - eqSelf
+	// selfKoef := 0.5 * (g.ForwardAeroKoef + g.BackAeroKoef)
+	// aeroDinamicForce += selfKoef * deltaSelf
 
 	v := aero.GetFlowVelocity()
 	rho := aero.GetFlowDensity()
