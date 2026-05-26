@@ -22,8 +22,8 @@ var (
 )
 
 const (
-	minKoef = -2.0
-	maxKoef = 2.0
+	minKoef = -1.0
+	maxKoef = 1.0
 	step    = 0.1
 )
 
@@ -45,6 +45,7 @@ func main() {
 
 	decrementStore := inmemory.NewDecrementStore()
 	frequencyStore := inmemory.NewFrequencyStore()
+	phaseDiffStore := inmemory.NewPhaseDiffStore()
 
 	if parallelFromEnv() {
 		wg := sync.WaitGroup{}
@@ -73,12 +74,12 @@ func main() {
 
 				wg.Add(1)
 
-				go func(wg *sync.WaitGroup, cnf *config.Graph, t0, T, dt float64, decrementStore *inmemory.DecrementStore, frequencyStore *inmemory.FreqStore, f, b float64) {
+				go func(wg *sync.WaitGroup, cnf *config.Graph, t0, T, dt float64, decrementStore *inmemory.DecrementStore, frequencyStore *inmemory.FreqStore, phaseDiffStore *inmemory.PhaseDiffStore, f, b float64) {
 					defer wg.Done()
 
 					pointsStore := inmemory.NewPointsStore()
-					solveParallelSweepJob(cnf, t0, T, dt, pointsStore, decrementStore, frequencyStore, f, b, skipFirst)
-				}(&wg, cnf, t0, T, dt, decrementStore, frequencyStore, f, b)
+					solveParallelSweepJob(cnf, t0, T, dt, pointsStore, decrementStore, frequencyStore, phaseDiffStore, f, b, skipFirst)
+				}(&wg, cnf, t0, T, dt, decrementStore, frequencyStore, phaseDiffStore, f, b)
 			}
 		}
 
@@ -96,6 +97,12 @@ func main() {
 			log.Info("Frequency store written to files")
 		}
 
+		if err := phaseDiffStore.WritePhaseDiffStoreToFiles(); err != nil {
+			log.Errorf("Error writing phase diff store to files: %v", err)
+		} else {
+			log.Info("Phase diff store written to files")
+		}
+
 	} else {
 		cnf, err := config.ReadGraphConfig()
 		if err != nil {
@@ -109,8 +116,8 @@ func main() {
 		t0 := cnf.Times.T0
 		dt := cnf.Times.Dt
 
-		b := 0.4
-		f := 0.4
+		f := -0.9
+		b := -0.1
 
 		pointsStore := inmemory.NewPointsStore()
 		amplitudeStore := inmemory.NewAmplitudeStore()
@@ -118,7 +125,7 @@ func main() {
 
 		graph := g.NewGraph()
 
-		solveWithGraph(cnf, graph, t0, T, dt, pointsStore, amplitudeStore, decrementStore, energyStore, f, b, skipFirst)
+		solveWithGraph(cnf, graph, t0, T, dt, pointsStore, amplitudeStore, decrementStore, energyStore, phaseDiffStore, f, b, skipFirst)
 
 		if err := energyStore.WriteEnergyStoreToFiles(graph.NodesNumbers()); err != nil {
 			log.Errorf("Error writing energy store to files: %v", err)
@@ -138,7 +145,7 @@ func main() {
 	log.Infof("Time taken: %v", time.Since(start))
 }
 
-func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, amplitudeStore *inmemory.AmplitudeStore, decrementStore *inmemory.DecrementStore, energyStore *inmemory.EnergyStore, f, b float64, skipFirst int) {
+func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, amplitudeStore *inmemory.AmplitudeStore, decrementStore *inmemory.DecrementStore, energyStore *inmemory.EnergyStore, phaseDiffStore *inmemory.PhaseDiffStore, f, b float64, skipFirst int) {
 	fmt.Println("\n=== Решение задачи о метрономах через графовую систему ===")
 	fmt.Printf("Начальные условия: t=0\n")
 	fmt.Printf("Диапазон расчёта: t=[%.2f, %.2f], dt=%.4f\n", t0, T, dt)
@@ -163,11 +170,15 @@ func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, points
 	}
 
 	utils.PrintLogDecrementForAllNodes(cnf, pointsStore, skipFirst, decrementStore, f, b)
+	utils.StorePhaseDiffForSweep(cnf, pointsStore, phaseDiffStore, f, b)
+	if err := phaseDiffStore.WritePhaseDiffStoreToFiles(); err != nil {
+		log.Errorf("Error writing phase diff store to files: %v", err)
+	}
 }
 
 // solveParallelSweepJob один прогон для пары (f,b): интеграция без записи graph_points*
 // и заполнение decrementStore (безопасно при многих горутинах).
-func solveParallelSweepJob(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, decrementStore *inmemory.DecrementStore, frequencyStore *inmemory.FreqStore, f, b float64, skipFirst int) {
+func solveParallelSweepJob(cnf *config.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, decrementStore *inmemory.DecrementStore, frequencyStore *inmemory.FreqStore, phaseDiffStore *inmemory.PhaseDiffStore, f, b float64, skipFirst int) {
 	graph := g.NewGraph()
 
 	if err := g.CreateGraph(graph, cnf); err != nil {
@@ -184,6 +195,7 @@ func solveParallelSweepJob(cnf *config.Graph, t0, T, dt float64, pointsStore *in
 
 	simulatePointsInMemory(solver, graph, t0, T, dt, pointsStore)
 	utils.StoreLogDecrementForAllNodes(cnf, pointsStore, skipFirst, decrementStore, frequencyStore, f, b)
+	utils.StorePhaseDiffForSweep(cnf, pointsStore, phaseDiffStore, f, b)
 }
 
 func simulatePointsInMemory(solver *equationsolver.GraphSolver, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore) {

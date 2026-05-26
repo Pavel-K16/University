@@ -155,6 +155,109 @@ def _aero_map_sentinel_masks(values: np.ndarray) -> tuple[np.ndarray, np.ndarray
     return mask_z, mask_o, mask_z | mask_o
 
 
+def _aero_coef_key(x: float, y: float) -> tuple[float, float]:
+    return (round(float(x), 6), round(float(y), 6))
+
+
+def _build_aero_coef_lookup(
+    bx: np.ndarray,
+    fy: np.ndarray,
+    values: np.ndarray,
+) -> dict[tuple[float, float], float]:
+    lookup: dict[tuple[float, float], float] = {}
+    for i in range(len(bx)):
+        lookup[_aero_coef_key(bx[i], fy[i])] = float(values[i])
+    return lookup
+
+
+def _lookup_aero_coef_values(
+    lookup: dict[tuple[float, float], float],
+    bx: np.ndarray,
+    fy: np.ndarray,
+) -> np.ndarray:
+    out = np.full(len(bx), np.nan, dtype=float)
+    for i in range(len(bx)):
+        key = _aero_coef_key(bx[i], fy[i])
+        if key in lookup:
+            out[i] = lookup[key]
+    return out
+
+
+def load_phase_diff_lookup(path: Path) -> dict[tuple[float, float], dict]:
+    if not path.exists():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            records = json.load(f)
+    except (OSError, json.JSONDecodeError) as ex:
+        print(f"Не удалось прочитать {path}: {ex}")
+        return {}
+    if not isinstance(records, list):
+        return {}
+    out: dict[tuple[float, float], dict] = {}
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        try:
+            key = _aero_coef_key(rec["koef1"], rec["koef2"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        out[key] = rec
+    return out
+
+
+def equilibrium_for_node_from_config(cfg: dict, node_id: int) -> float | None:
+    nodes = {int(n["id"]): n for n in cfg.get("nodes", [])}
+    if node_id not in nodes:
+        return None
+    fixed = [n for n in cfg.get("nodes", []) if n.get("fixed")]
+    if not fixed:
+        return None
+    for fixed_node in fixed:
+        fid = int(fixed_node["id"])
+        fpos = float(fixed_node.get("position", 0.0))
+        for e in cfg.get("edges", []):
+            if int(e["from"]) == node_id and int(e["to"]) == fid:
+                return fpos - float(e.get("rest", 0.0))
+        for e in cfg.get("edges", []):
+            if int(e["from"]) == fid and int(e["to"]) == node_id:
+                return fpos + float(e.get("rest", 0.0))
+    return float(nodes[node_id].get("position", 0.0))
+
+
+def interblade_phase_diff_deg_numpy(
+    t: np.ndarray,
+    xa: np.ndarray,
+    xb: np.ndarray,
+    x_eq_a: float,
+    x_eq_b: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    if t.size < 5:
+        return np.array([]), np.array([])
+    a = xa - x_eq_a
+    b = xb - x_eq_b
+    va = np.gradient(a, t)
+    vb = np.gradient(b, t)
+    amp_a = np.hypot(a, va)
+    amp_b = np.hypot(b, vb)
+    mask = (amp_a > 1e-10) & (amp_b > 1e-10)
+    pa = np.arctan2(-va, a)
+    pb = np.arctan2(-vb, b)
+    diff = np.degrees(pa - pb)
+    diff = np.unwrap(np.radians(diff)) * (180.0 / np.pi)
+    return t[mask], diff[mask]
+
+
+def _aero_paired_scalar(v: float) -> float | None:
+    if not np.isfinite(v):
+        return None
+    if np.isclose(v, _AERO_ZERO_MAXS_SENTINEL, rtol=0.0, atol=1e-3):
+        return None
+    if np.isclose(v, _AERO_ONE_MAX_SENTINEL, rtol=0.0, atol=1e-3):
+        return None
+    return float(v)
+
+
 def _write_aero_map_interactive_html(
     plots_dir: Path,
     node_id: str,
@@ -167,6 +270,13 @@ def _write_aero_map_interactive_html(
     hint_html: str,
     value_label: str,
     distinguish_zero: bool,
+    koef1_label: str = "koef1 (forward)",
+    koef2_label: str = "koef2 (back)",
+    labels_use_html: bool = False,
+    map_metric: str | None = None,
+    paired_freq: np.ndarray | None = None,
+    paired_delta: np.ndarray | None = None,
+    phase_lookup: dict[tuple[float, float], dict] | None = None,
 ) -> str | None:
     """
     Автономный HTML+SVG+JS: клик по точке показывает koef1, koef2 и значение карты.
@@ -201,14 +311,42 @@ def _write_aero_map_interactive_html(
     pts: list[dict] = []
     for i in range(len(bx)):
         xi, yi, vi = float(bx[i]), float(fy[i]), float(values[i])
+        delta_v: float | None = None
+        freq_v: float | None = None
+        if map_metric == "delta":
+            if not mask_z[i] and not mask_o[i]:
+                delta_v = _aero_paired_scalar(vi)
+            if paired_freq is not None and i < len(paired_freq):
+                freq_v = _aero_paired_scalar(float(paired_freq[i]))
+        elif map_metric == "frequency":
+            if not mask_z[i] and not mask_o[i]:
+                freq_v = _aero_paired_scalar(vi)
+            if paired_delta is not None and i < len(paired_delta):
+                delta_v = _aero_paired_scalar(float(paired_delta[i]))
         if mask_z[i]:
-            pts.append({"x": xi, "y": yi, "d": vi, "k": "z"})
+            pt: dict = {"x": xi, "y": yi, "d": vi, "k": "z"}
         elif mask_o[i]:
-            pts.append({"x": xi, "y": yi, "d": vi, "k": "o"})
+            pt = {"x": xi, "y": yi, "d": vi, "k": "o"}
         elif distinguish_zero and np.isclose(vi, 0.0, rtol=0.0, atol=1e-12):
-            pts.append({"x": xi, "y": yi, "d": vi, "k": "0", "c": to_hex(cmap(norm(vi)))})
+            pt = {"x": xi, "y": yi, "d": vi, "k": "0", "c": to_hex(cmap(norm(vi)))}
         else:
-            pts.append({"x": xi, "y": yi, "d": vi, "k": "s", "c": to_hex(cmap(norm(vi)))})
+            pt = {"x": xi, "y": yi, "d": vi, "k": "s", "c": to_hex(cmap(norm(vi)))}
+        if delta_v is not None:
+            pt["delta"] = delta_v
+        if freq_v is not None:
+            pt["freq"] = freq_v
+        if phase_lookup is not None:
+            phase_rec = phase_lookup.get(_aero_coef_key(xi, yi))
+            if phase_rec:
+                nb = int(phase_rec.get("neighborId", -1))
+                pt["phaseLabel"] = f"φ({node_id})−φ({nb})"
+                pt["phaseMeanDeg"] = float(phase_rec.get("meanDeg", 0.0))
+                pt["phaseStdDeg"] = float(phase_rec.get("stdDeg", 0.0))
+                pt["phaseT"] = phase_rec.get("t") or []
+                pt["phaseDeg"] = phase_rec.get("phaseDeg") or []
+        pts.append(pt)
+
+    show_osc_metrics = map_metric in ("delta", "frequency")
 
     payload = {
         "bounds": {
@@ -218,6 +356,12 @@ def _write_aero_map_interactive_html(
             "ymax": ymax_p,
         },
         "valueLabel": value_label,
+        "koef1Label": koef1_label,
+        "koef2Label": koef2_label,
+        "labelsUseHtml": labels_use_html,
+        "showOscMetrics": show_osc_metrics,
+        "mapMetric": map_metric,
+        "nodeId": str(node_id),
         "points": pts,
     }
     payload_json = json.dumps(payload, ensure_ascii=False)
@@ -244,6 +388,14 @@ def _write_aero_map_interactive_html(
       white-space: pre-wrap;
     }
     .hint { color: #555; font-size: 0.9rem; margin-bottom: 8px; }
+    #phasePanel {
+      margin-top: 12px; padding: 12px; background: #fff; border: 1px solid #ccc;
+      display: none;
+    }
+    #phasePanel h2 { font-size: 1rem; margin: 0 0 8px; }
+    #phaseCaption { margin: 0 0 4px; }
+    #phaseStats { margin: 0 0 10px; color: #444; font-size: 0.9rem; }
+    #phaseChart { display: block; max-width: 100%; height: auto; }
   </style>
 </head>
 <body>
@@ -254,6 +406,12 @@ def _write_aero_map_interactive_html(
     <g id="markers"></g>
   </svg>
   <div id="info">Нажмите на точку карты…</div>
+  <div id="phasePanel">
+    <h2>Межлопаточная фаза Δφ(t) для этой лопатки</h2>
+    <p id="phaseCaption" class="hint">Кликните квадрат на карте.</p>
+    <p id="phaseStats" class="hint"></p>
+    <svg id="phaseChart" width="920" height="400" viewBox="0 0 920 400" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
   <script id="payload" type="application/json">__PAYLOAD__</script>
   <script>
 (function() {
@@ -269,12 +427,216 @@ def _write_aero_map_interactive_html(
   }
   const g = document.getElementById('markers');
   const info = document.getElementById('info');
+  const phasePanel = document.getElementById('phasePanel');
+  const phaseChart = document.getElementById('phaseChart');
+  const phaseCaption = document.getElementById('phaseCaption');
+  const phaseStats = document.getElementById('phaseStats');
+  const svgNs = 'http://www.w3.org/2000/svg';
 
   const valueLabel = data.valueLabel || 'value';
+  const koef1Label = data.koef1Label || 'koef1 (forward)';
+  const koef2Label = data.koef2Label || 'koef2 (back)';
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+  function niceStep(range, ticks) {
+    if (!isFinite(range) || range <= 0) return 1;
+    const rough = range / ticks;
+    const pow = Math.pow(10, Math.floor(Math.log10(rough)));
+    const norm = rough / pow;
+    let step = 10;
+    if (norm <= 1.5) step = 1;
+    else if (norm <= 3) step = 2;
+    else if (norm <= 7) step = 5;
+    return step * pow;
+  }
+  function formatTick(v, isTime) {
+    if (!isFinite(v)) return '';
+    const av = Math.abs(v);
+    if (isTime) {
+      if (av >= 100) return v.toFixed(0);
+      if (av >= 10) return v.toFixed(1);
+      return v.toFixed(2);
+    }
+    if (av >= 1000) return v.toFixed(0);
+    if (av >= 100) return v.toFixed(1);
+    return v.toFixed(2);
+  }
+  function svgText(x, y, text, anchor, size, rotate) {
+    const el = document.createElementNS(svgNs, 'text');
+    el.setAttribute('x', String(x));
+    el.setAttribute('y', String(y));
+    el.setAttribute('font-size', String(size || 11));
+    el.setAttribute('fill', '#222');
+    if (anchor) el.setAttribute('text-anchor', anchor);
+    if (rotate) el.setAttribute('transform', rotate);
+    el.textContent = text;
+    return el;
+  }
+  function drawPhaseChart(p) {
+    while (phaseChart.firstChild) {
+      phaseChart.removeChild(phaseChart.firstChild);
+    }
+    if (!p.phaseT || !p.phaseDeg || p.phaseT.length < 2) {
+      phasePanel.style.display = 'none';
+      return;
+    }
+    phasePanel.style.display = 'block';
+    const label = p.phaseLabel || ('φ(' + data.nodeId + ')−φ(?)');
+    let cap = 'k\u207A=' + p.x + ', k\u207B=' + p.y;
+    if (p.delta != null) cap += ', Λ=' + Number(p.delta).toFixed(6);
+    if (p.freq != null) cap += ', f=' + Number(p.freq).toFixed(6);
+    cap += ' — ' + label;
+    phaseCaption.textContent = cap;
+    if (p.phaseMeanDeg != null && p.phaseStdDeg != null) {
+      phaseStats.textContent =
+        'среднее Δφ за прогон = ' + Number(p.phaseMeanDeg).toFixed(2) +
+        '°, СКО Δφ = ' + Number(p.phaseStdDeg).toFixed(2) +
+        '° (разброс фазы во времени; это не логарифмический декремент Λ)';
+    } else {
+      phaseStats.textContent = '';
+    }
+    const W = 920, H = 400, mL = 72, mR = 24, mT = 44, mB = 56;
+    const pW = W - mL - mR, pH = H - mT - mB;
+    const tMin = Math.min.apply(null, p.phaseT);
+    const tMax = Math.max.apply(null, p.phaseT);
+    let yMin = Math.min.apply(null, p.phaseDeg);
+    let yMax = Math.max.apply(null, p.phaseDeg);
+    if (Math.abs(yMax - yMin) < 1e-9) {
+      yMin -= 5.0;
+      yMax += 5.0;
+    } else {
+      const pad = 0.06 * (yMax - yMin);
+      yMin -= pad;
+      yMax += pad;
+    }
+    const txp = function(t) {
+      return mL + (t - tMin) / (tMax - tMin) * pW;
+    };
+    const typ = function(y) {
+      return mT + pH - (y - yMin) / (yMax - yMin) * pH;
+    };
+    const bg = document.createElementNS(svgNs, 'rect');
+    bg.setAttribute('x', '0');
+    bg.setAttribute('y', '0');
+    bg.setAttribute('width', String(W));
+    bg.setAttribute('height', String(H));
+    bg.setAttribute('fill', '#fafafa');
+    phaseChart.appendChild(bg);
+    const plotBg = document.createElementNS(svgNs, 'rect');
+    plotBg.setAttribute('x', String(mL));
+    plotBg.setAttribute('y', String(mT));
+    plotBg.setAttribute('width', String(pW));
+    plotBg.setAttribute('height', String(pH));
+    plotBg.setAttribute('fill', '#fff');
+    plotBg.setAttribute('stroke', '#bbb');
+    phaseChart.appendChild(plotBg);
+    const xStep = niceStep(tMax - tMin, 6);
+    const yStep = niceStep(yMax - yMin, 6);
+    const xStart = Math.ceil(tMin / xStep) * xStep;
+    const yStart = Math.ceil(yMin / yStep) * yStep;
+    for (let xv = xStart; xv <= tMax + xStep * 0.01; xv += xStep) {
+      const px = txp(xv);
+      const grid = document.createElementNS(svgNs, 'line');
+      grid.setAttribute('x1', String(px));
+      grid.setAttribute('y1', String(mT));
+      grid.setAttribute('x2', String(px));
+      grid.setAttribute('y2', String(mT + pH));
+      grid.setAttribute('stroke', '#e6e6e6');
+      grid.setAttribute('stroke-width', '1');
+      phaseChart.appendChild(grid);
+      phaseChart.appendChild(svgText(px, mT + pH + 18, formatTick(xv, true), 'middle', 11));
+    }
+    for (let yv = yStart; yv <= yMax + yStep * 0.01; yv += yStep) {
+      const py = typ(yv);
+      const grid = document.createElementNS(svgNs, 'line');
+      grid.setAttribute('x1', String(mL));
+      grid.setAttribute('y1', String(py));
+      grid.setAttribute('x2', String(mL + pW));
+      grid.setAttribute('y2', String(py));
+      grid.setAttribute('stroke', '#e6e6e6');
+      grid.setAttribute('stroke-width', '1');
+      phaseChart.appendChild(grid);
+      phaseChart.appendChild(svgText(mL - 8, py + 4, formatTick(yv, false), 'end', 11));
+    }
+    const xAxis = document.createElementNS(svgNs, 'line');
+    xAxis.setAttribute('x1', String(mL));
+    xAxis.setAttribute('y1', String(mT + pH));
+    xAxis.setAttribute('x2', String(mL + pW));
+    xAxis.setAttribute('y2', String(mT + pH));
+    xAxis.setAttribute('stroke', '#333');
+    xAxis.setAttribute('stroke-width', '1.2');
+    phaseChart.appendChild(xAxis);
+    const yAxis = document.createElementNS(svgNs, 'line');
+    yAxis.setAttribute('x1', String(mL));
+    yAxis.setAttribute('y1', String(mT));
+    yAxis.setAttribute('x2', String(mL));
+    yAxis.setAttribute('y2', String(mT + pH));
+    yAxis.setAttribute('stroke', '#333');
+    yAxis.setAttribute('stroke-width', '1.2');
+    phaseChart.appendChild(yAxis);
+    phaseChart.appendChild(svgText(mL + pW / 2, H - 12, 't, с', 'middle', 13));
+    phaseChart.appendChild(svgText(18, mT + pH / 2, 'Δφ, °', 'middle', 13, 'rotate(-90 18 ' + (mT + pH / 2) + ')'));
+    phaseChart.appendChild(svgText(mL, 28, label, null, 13));
+    let ptsStr = '';
+    for (let i = 0; i < p.phaseT.length; i++) {
+      ptsStr += txp(p.phaseT[i]) + ',' + typ(p.phaseDeg[i]) + ' ';
+    }
+    const poly = document.createElementNS(svgNs, 'polyline');
+    poly.setAttribute('points', ptsStr.trim());
+    poly.setAttribute('fill', 'none');
+    poly.setAttribute('stroke', '#1565c0');
+    poly.setAttribute('stroke-width', '1.8');
+    phaseChart.appendChild(poly);
+  }
   function show(p) {
+    const x = esc(p.x);
+    const y = esc(p.y);
+    const v = esc(p.d);
+    if (data.showOscMetrics) {
+      let html =
+        koef1Label + ' = ' + x + '<br>' +
+        koef2Label + ' = ' + y;
+      const deltaBlock = [];
+      const freqBlock = [];
+      if (p.delta != null) {
+        deltaBlock.push(esc('delta') + ' = ' + p.delta);
+      }
+      if (p.delta != null && p.freq != null) {
+        deltaBlock.push(esc('delta * frequency') + ' = ' + (p.delta * p.freq));
+      }
+      if (p.freq != null) {
+        freqBlock.push(esc('frequency') + ' = ' + p.freq);
+      }
+      if (p.freq != null) {
+        freqBlock.push(esc('frequency * 2π') + ' = ' + (2 * Math.PI * p.freq));
+      }
+      const blocks = data.mapMetric === 'frequency'
+        ? [freqBlock, deltaBlock]
+        : [deltaBlock, freqBlock];
+      blocks.forEach(function(block) {
+        block.forEach(function(line) {
+          html += '<br>' + line;
+        });
+      });
+      info.innerHTML = html;
+      drawPhaseChart(p);
+      return;
+    }
+    if (data.labelsUseHtml) {
+      let html =
+        koef1Label + ' = ' + x + '<br>' +
+        koef2Label + ' = ' + y + '<br>' +
+        esc(valueLabel) + ' = ' + v;
+      info.innerHTML = html;
+      return;
+    }
     info.textContent =
-      'koef1 (forward) = ' + p.x + '\n' +
-      'koef2 (back)    = ' + p.y + '\n' +
+      koef1Label + ' = ' + p.x + '\n' +
+      koef2Label + ' = ' + p.y + '\n' +
       valueLabel + ' = ' + p.d;
   }
 
@@ -371,6 +733,13 @@ def build_aero_coef_map(
     interactive_hint: str,
     interactive_value_label: str,
     distinguish_zero: bool,
+    interactive_koef1_label: str = "koef1 (forward)",
+    interactive_koef2_label: str = "koef2 (back)",
+    interactive_labels_use_html: bool = False,
+    interactive_map_metric: str | None = None,
+    interactive_paired_freq: np.ndarray | None = None,
+    interactive_paired_delta: np.ndarray | None = None,
+    interactive_phase_lookup: dict[tuple[float, float], dict] | None = None,
 ) -> tuple[str, str | None]:
     """PNG + интерактивная HTML-карта по сетке (koef1, koef2) → value."""
     img_name = f"{file_stem}_node{node_id}.png"
@@ -474,6 +843,13 @@ def build_aero_coef_map(
         hint_html=interactive_hint,
         value_label=interactive_value_label,
         distinguish_zero=distinguish_zero,
+        koef1_label=interactive_koef1_label,
+        koef2_label=interactive_koef2_label,
+        labels_use_html=interactive_labels_use_html,
+        map_metric=interactive_map_metric,
+        paired_freq=interactive_paired_freq,
+        paired_delta=interactive_paired_delta,
+        phase_lookup=interactive_phase_lookup,
     )
     return img_name, ih
 
@@ -630,6 +1006,7 @@ def generate_plots_and_html():
         graph_files = sorted(data_dir.glob("graph_points*.txt"))
 
     traj_img_name = "trajectories.png"
+    phase_img_name = "interblade_phase.png"
     amp_img_name = "amplitudes.png"
     energy_img_name = "sum_energy.png"
     dsum_energy_img_name = "dsum_energy.png"
@@ -644,6 +1021,7 @@ def generate_plots_and_html():
     d_energy_per_node_has_data = False
     analytical_dadt_has_data = False
     d_amp_has_data = False
+    phase_has_data = False
 
     if (not PARALLEL_ONLY_DECREMENT_MAPS) and graph_files:
         plt.figure(figsize=(10, 6))
@@ -707,6 +1085,62 @@ def generate_plots_and_html():
     elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файлы amplitude_points*.txt не найдены в {data_dir}")
 
+    # ---------- Межлопаточная фаза Δφ(t), градусы (single run) ----------
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and graph_files and movable_node_ids:
+        config_name = os.environ.get("CONFIG", "conf")
+        config_path = root_dir / "internal" / "config" / "confs" / f"{config_name}.json"
+        cfg: dict | None = None
+        if config_path.exists():
+            try:
+                with config_path.open("r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+            except Exception:
+                cfg = None
+        trajectories: dict[int, tuple[np.ndarray, np.ndarray]] = {}
+        for path in graph_files:
+            m = re.match(r"^graph_points(\d+)$", path.stem)
+            if not m:
+                continue
+            t, x = load_two_column_txt(path)
+            if t.size == 0:
+                continue
+            trajectories[int(m.group(1))] = (t, x)
+        if cfg is not None and trajectories:
+            plt.figure(figsize=(10, 6))
+            colors = plt.cm.tab10.colors
+            for idx, node_id in enumerate(movable_node_ids):
+                neighbor_id = movable_node_ids[(idx + 1) % len(movable_node_ids)]
+                if node_id not in trajectories or neighbor_id not in trajectories:
+                    continue
+                x_eq_a = equilibrium_for_node_from_config(cfg, node_id)
+                x_eq_b = equilibrium_for_node_from_config(cfg, neighbor_id)
+                if x_eq_a is None or x_eq_b is None:
+                    continue
+                t_a, x_a = trajectories[node_id]
+                t_b, x_b = trajectories[neighbor_id]
+                n = min(t_a.size, t_b.size)
+                t_ph, ph = interblade_phase_diff_deg_numpy(
+                    t_a[:n], x_a[:n], x_b[:n], x_eq_a, x_eq_b
+                )
+                if t_ph.size == 0:
+                    continue
+                phase_has_data = True
+                plt.plot(
+                    t_ph,
+                    ph,
+                    label=f"φ({node_id})−φ({neighbor_id})",
+                    color=colors[idx % len(colors)],
+                )
+            if phase_has_data:
+                plt.xlabel("t")
+                plt.ylabel("Δφ, °")
+                plt.title("Межлопаточная разность фаз (развёрнутая)")
+                plt.grid(True, alpha=0.3)
+                plt.legend()
+                safe_tight_layout()
+                plt.savefig(plots_dir / phase_img_name, dpi=200)
+            plt.close()
+
     # ---------- Декремент затухания по пикам decrement_points*.txt ----------
     dec_files = []
     if movable_node_ids:
@@ -762,6 +1196,14 @@ def generate_plots_and_html():
 
             decr_store_has_data = True
             node_id = path.stem.replace("decrementStore", "")
+            freq_paired: np.ndarray | None = None
+            freq_path = data_dir / f"freqStore{node_id}.txt"
+            if freq_path.exists():
+                fbx, ffy, freq = load_three_column_txt(freq_path)
+                if fbx.size > 0:
+                    freq_lookup = _build_aero_coef_lookup(fbx, ffy, freq)
+                    freq_paired = _lookup_aero_coef_values(freq_lookup, bx, fy)
+            phase_lookup = load_phase_diff_lookup(data_dir / f"phaseDiffStore{node_id}.json")
             img_name, ih = build_aero_coef_map(
                 plots_dir,
                 node_id,
@@ -773,10 +1215,17 @@ def generate_plots_and_html():
                 cbar_label="delta",
                 interactive_page_title="Карта декремента",
                 interactive_hint=(
-                    "Круг: δ≈0; квадрат: δ≠0; красный ▲: маркер zeroMaxs; жёлтый ▲: маркер oneMax."
+                    "Клик по квадрату: метрики и Δφ(t) для пары этой лопатки с соседом по кольцу. "
+                    "Другую лопатку — на её карте (node 1 → φ(1)−φ(2), …)."
                 ),
                 interactive_value_label="delta",
                 distinguish_zero=True,
+                interactive_koef1_label="k<sup>+</sup>",
+                interactive_koef2_label="k<sup>−</sup>",
+                interactive_labels_use_html=True,
+                interactive_map_metric="delta",
+                interactive_paired_freq=freq_paired,
+                interactive_phase_lookup=phase_lookup or None,
             )
             decr_map_imgs.append((node_id, img_name, ih or ""))
 
@@ -802,6 +1251,14 @@ def generate_plots_and_html():
 
             freq_store_has_data = True
             node_id = path.stem.replace("freqStore", "")
+            delta_paired: np.ndarray | None = None
+            decr_path = data_dir / f"decrementStore{node_id}.txt"
+            if decr_path.exists():
+                dbx, dfy, dval = load_three_column_txt(decr_path)
+                if dbx.size > 0:
+                    delta_lookup = _build_aero_coef_lookup(dbx, dfy, dval)
+                    delta_paired = _lookup_aero_coef_values(delta_lookup, bx, fy)
+            phase_lookup = load_phase_diff_lookup(data_dir / f"phaseDiffStore{node_id}.json")
             img_name, ih = build_aero_coef_map(
                 plots_dir,
                 node_id,
@@ -813,11 +1270,16 @@ def generate_plots_and_html():
                 cbar_label="frequency (1/s)",
                 interactive_page_title="Карта частоты",
                 interactive_hint=(
-                    "Квадрат: рассчитанная частота; красный ▲: нет данных (zeroMaxs); "
-                    "жёлтый ▲: маркер oneMax (если встретился в данных)."
+                    "Клик по квадрату: метрики и Δφ(t) для пары этой лопатки с соседом по кольцу."
                 ),
                 interactive_value_label="frequency",
                 distinguish_zero=False,
+                interactive_koef1_label="k<sup>+</sup>",
+                interactive_koef2_label="k<sup>−</sup>",
+                interactive_labels_use_html=True,
+                interactive_map_metric="frequency",
+                interactive_paired_delta=delta_paired,
+                interactive_phase_lookup=phase_lookup or None,
             )
             freq_map_imgs.append((node_id, img_name, ih or ""))
 
@@ -1263,6 +1725,8 @@ def generate_plots_and_html():
   <div class="block">
     <h2>Траектории узлов (graph_points*.txt)</h2>
     {"<p>Файлы не найдены.</p>" if not graph_files else f'<img src="{traj_img_name}" alt="Trajectories">'}
+    <h2>Межлопаточная фаза Δφ(t), °</h2>
+    {"<p>Нет graph_points* или подвижных узлов в конфиге.</p>" if not phase_has_data else f'<img src="{phase_img_name}" alt="Inter-blade phase">'}
   </div>
 
   <div class="block">

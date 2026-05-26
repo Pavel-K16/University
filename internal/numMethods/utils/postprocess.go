@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -14,7 +15,7 @@ var postprocessLog = logger.LoggerInit()
 
 // DefaultSkipFirstMaxima — сколько первых амплитудных пиков пропускать
 // при расчёте декремента и средней частоты (переходный процесс).
-const DefaultSkipFirstMaxima = 2
+const DefaultSkipFirstMaxima = 0
 
 // SkipFirstMaxima возвращает число пропускаемых первых пиков.
 // Переопределение: export SKIP_FIRST_MAXIMA=<неотрицательное целое>.
@@ -49,6 +50,6 @@ func LogFrequencySummary(cnf *config.Graph, pointsStore *inmemory.PointsStore, s
 			postprocessLog.Infof("No frequencies found for node %d", node.ID)
 			continue
 		}
-		postprocessLog.Infof("Frequency for node %d: %f", node.ID, fk.Freq)
+		postprocessLog.Infof("W for node %d: %f; %f", node.ID, fk.Freq, fk.Freq*2.*math.Pi)
 	}
 }
