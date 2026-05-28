@@ -116,8 +116,8 @@ func main() {
 		t0 := cnf.Times.T0
 		dt := cnf.Times.Dt
 
-		f := -0.9
-		b := -0.1
+		f := 0.0
+		b := 0.0
 
 		pointsStore := inmemory.NewPointsStore()
 		amplitudeStore := inmemory.NewAmplitudeStore()

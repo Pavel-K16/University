@@ -1,0 +1,153 @@
+{
+  "aeroDynamicForce": {
+    "b": 1,
+    "enabled": true,
+    "rho": 1,
+    "scale": 2,
+    "v": 1
+  },
+  "edges": [
+    {
+      "d": 0,
+      "from": 0,
+      "k": 0,
+      "periodic": true,
+      "rest": 0,
+      "to": 5
+    },
+    {
+      "d": 0,
+      "from": 0,
+      "k": 0,
+      "rest": 0,
+      "to": 1
+    },
+    {
+      "d": 0,
+      "from": 1,
+      "k": 0,
+      "rest": 0,
+      "to": 2
+    },
+    {
+      "d": 0,
+      "from": 2,
+      "k": 0,
+      "rest": 0,
+      "to": 3
+    },
+    {
+      "d": 0,
+      "from": 3,
+      "k": 0,
+      "rest": 0,
+      "to": 4
+    },
+    {
+      "d": 0,
+      "from": 4,
+      "k": 0,
+      "rest": 0,
+      "to": 5
+    },
+    {
+      "d": 0,
+      "from": 0,
+      "k": 1,
+      "rest": 0,
+      "to": 6
+    },
+    {
+      "d": 0,
+      "from": 1,
+      "k": 1,
+      "rest": 0,
+      "to": 6
+    },
+    {
+      "d": 0,
+      "from": 2,
+      "k": 1,
+      "rest": 0,
+      "to": 6
+    },
+    {
+      "d": 0,
+      "from": 3,
+      "k": 1,
+      "rest": 0,
+      "to": 6
+    },
+    {
+      "d": 0,
+      "from": 4,
+      "k": 1,
+      "rest": 0,
+      "to": 6
+    },
+    {
+      "d": 0,
+      "from": 5,
+      "k": 1,
+      "rest": 0,
+      "to": 6
+    }
+  ],
+  "lastFirstDist": 1,
+  "nodes": [
+    {
+      "fixed": false,
+      "id": 0,
+      "mass": 1,
+      "position": 1,
+      "velocity": -0
+    },
+    {
+      "fixed": false,
+      "id": 1,
+      "mass": 1,
+      "position": 0.5,
+      "velocity": -0.88816534
+    },
+    {
+      "fixed": false,
+      "id": 2,
+      "mass": 1,
+      "position": -0.5,
+      "velocity": -0.88816534
+    },
+    {
+      "fixed": false,
+      "id": 3,
+      "mass": 1,
+      "position": -1,
+      "velocity": -0
+    },
+    {
+      "fixed": false,
+      "id": 4,
+      "mass": 1,
+      "position": -0.5,
+      "velocity": 0.88816534
+    },
+    {
+      "fixed": false,
+      "id": 5,
+      "mass": 1,
+      "position": 0.5,
+      "velocity": 0.88816534
+    },
+    {
+      "fixed": true,
+      "id": 6,
+      "mass": 1000000000,
+      "position": 0,
+      "velocity": 0
+    }
+  ],
+  "times": {
+    "dt": 0.001,
+    "t": 20,
+    "t0": 0
+  }
+}

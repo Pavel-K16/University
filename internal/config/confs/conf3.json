@@ -1,8 +1,8 @@
 {
     "times":{
      "t0":0.0,
-     "t": 20.0,
-     "dt":0.001
+     "t": 120.0,
+     "dt":0.01
     },
     "aeroDynamicForce":
      {
@@ -19,42 +19,42 @@
        "fixed": false,
        "mass": 1.0,
        "position": 1.0,
-       "velocity": -0.04222189
+       "velocity": 0.0
      },
      {
        "id": 1,
        "fixed": false,
        "mass": 1.0,
-       "position": 0.5,
-       "velocity": -0.90927629
+       "position": 1.0,
+       "velocity": 0.0
      },
      {
        "id": 2,
        "fixed": false,
        "mass": 1.0,
-       "position": -0.5,
-       "velocity": -0.86705440
+       "position": 1.0,
+       "velocity": 0.0
      },
      {
        "id": 3,
        "fixed": false,
        "mass": 1.0,
-       "position": -1.0,
-       "velocity": 0.04222189
+       "position": 1.0,
+       "velocity": 0.0
      },
      {
        "id": 4,
        "fixed": false,
        "mass":1.0,
-       "position": -0.5,
-       "velocity": 0.90927629
+       "position": 1.0,
+       "velocity": 0.0
      },
      {
       "id": 5,
       "fixed": false,
       "mass":1.0,
-      "position": 0.5,
-      "velocity": 0.86705440
+      "position": 1.0,
+      "velocity": 0.0
     },
      {
        "id": 6,
@@ -79,6 +79,6 @@
      { "from": 4, "to": 6, "k": 1.0, "d": 0.0, "rest": 0.0 },
      { "from": 5, "to": 6, "k": 1.0, "d": 0.0, "rest": 0.0 }
    ],
-   "lastFirstDist": 0.0
+   "lastFirstDist": 1.0
   }
   

@@ -36,20 +36,21 @@ func StorePhaseDiffForSweep(
 
 		ptsA := pointsStore.GetPoints(nodeID)
 		ptsB := pointsStore.GetPoints(neighborID)
-		meanDeg, stdDeg, tOut, phaseOut := interbladePhaseDiffDeg(ptsA, ptsB, xEqA, xEqB, phaseDiffDownsample)
+		meanDeg, stdDeg, tOut, phaseOut, absPhaseOut := interbladePhaseDiffDeg(ptsA, ptsB, xEqA, xEqB, phaseDiffDownsample)
 		if len(tOut) == 0 {
 			continue
 		}
 
 		phaseStore.AddRecord(nodeID, inmemory.PhaseDiffRecord{
-			Koef1:      f,
-			Koef2:      b,
-			NodeID:     nodeID,
-			NeighborID: neighborID,
-			MeanDeg:    meanDeg,
-			StdDeg:     stdDeg,
-			T:          tOut,
-			PhaseDeg:   phaseOut,
+			Koef1:       f,
+			Koef2:       b,
+			NodeID:      nodeID,
+			NeighborID:  neighborID,
+			MeanDeg:     meanDeg,
+			StdDeg:      stdDeg,
+			T:           tOut,
+			PhaseDeg:    phaseOut,
+			AbsPhaseDeg: absPhaseOut,
 		})
 	}
 }
@@ -69,14 +70,15 @@ func interbladePhaseDiffDeg(
 	ptsA, ptsB []inmemory.Point,
 	xEqA, xEqB float64,
 	sampleCount int,
-) (meanDeg, stdDeg float64, tOut, phaseOut []float64) {
+) (meanDeg, stdDeg float64, tOut, phaseOut, absPhaseOut []float64) {
 	n := len(ptsA)
 	if n != len(ptsB) || n < 5 {
-		return 0, 0, nil, nil
+		return 0, 0, nil, nil, nil
 	}
 
 	tSeries := make([]float64, 0, n-2)
 	phaseSeries := make([]float64, 0, n-2)
+	absPhaseSeries := make([]float64, 0, n-2)
 
 	for i := 1; i < n-1; i++ {
 		a := ptsA[i].X - xEqA
@@ -97,18 +99,21 @@ func interbladePhaseDiffDeg(
 		pa := math.Atan2(-va, a)
 		pb := math.Atan2(-vb, b)
 		diffDeg := (pa - pb) * 180.0 / math.Pi
+		absDeg := pa * 180.0 / math.Pi
 		tSeries = append(tSeries, ptsA[i].T)
 		phaseSeries = append(phaseSeries, diffDeg)
+		absPhaseSeries = append(absPhaseSeries, absDeg)
 	}
 
 	if len(phaseSeries) == 0 {
-		return 0, 0, nil, nil
+		return 0, 0, nil, nil, nil
 	}
 
 	unwrapped := unwrapDegrees(phaseSeries)
 	meanDeg, stdDeg = meanStd(unwrapped)
 	tOut, phaseOut = downsampleSeries(tSeries, unwrapped, sampleCount)
-	return meanDeg, stdDeg, tOut, phaseOut
+	_, absPhaseOut = downsampleSeries(tSeries, absPhaseSeries, sampleCount)
+	return meanDeg, stdDeg, tOut, phaseOut, absPhaseOut
 }
 
 func unwrapDegrees(deg []float64) []float64 {

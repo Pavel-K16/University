@@ -13,14 +13,15 @@ const (
 
 // PhaseDiffRecord — межлопаточная фаза для одной пары (k+, k−) на сетке sweep.
 type PhaseDiffRecord struct {
-	Koef1      float64   `json:"koef1"`
-	Koef2      float64   `json:"koef2"`
-	NodeID     int       `json:"nodeId"`
-	NeighborID int       `json:"neighborId"`
-	MeanDeg    float64   `json:"meanDeg"`
-	StdDeg     float64   `json:"stdDeg"`
-	T          []float64 `json:"t"`
-	PhaseDeg   []float64 `json:"phaseDeg"`
+	Koef1       float64   `json:"koef1"`
+	Koef2       float64   `json:"koef2"`
+	NodeID      int       `json:"nodeId"`
+	NeighborID  int       `json:"neighborId"`
+	MeanDeg     float64   `json:"meanDeg"`
+	StdDeg      float64   `json:"stdDeg"`
+	T           []float64 `json:"t"`
+	PhaseDeg    []float64 `json:"phaseDeg"`
+	AbsPhaseDeg []float64 `json:"absPhaseDeg"`
 }
 
 type PhaseDiffStore struct {

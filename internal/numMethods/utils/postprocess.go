@@ -15,7 +15,7 @@ var postprocessLog = logger.LoggerInit()
 
 // DefaultSkipFirstMaxima — сколько первых амплитудных пиков пропускать
 // при расчёте декремента и средней частоты (переходный процесс).
-const DefaultSkipFirstMaxima = 0
+const DefaultSkipFirstMaxima = 2
 
 // SkipFirstMaxima возвращает число пропускаемых первых пиков.
 // Переопределение: export SKIP_FIRST_MAXIMA=<неотрицательное целое>.
