@@ -1,153 +1,83 @@
 {
-  "aeroDynamicForce": {
-    "b": 1,
-    "enabled": true,
-    "rho": 1,
-    "scale": 2,
-    "v": 1
+  "times":{
+   "t0":0.0,
+   "t": 20.0,
+   "dt":0.001
   },
-  "edges": [
-    {
-      "d": 0,
-      "from": 0,
-      "k": 0,
-      "periodic": true,
-      "rest": 0,
-      "to": 5
-    },
-    {
-      "d": 0,
-      "from": 0,
-      "k": 0,
-      "rest": 0,
-      "to": 1
-    },
-    {
-      "d": 0,
-      "from": 1,
-      "k": 0,
-      "rest": 0,
-      "to": 2
-    },
-    {
-      "d": 0,
-      "from": 2,
-      "k": 0,
-      "rest": 0,
-      "to": 3
-    },
-    {
-      "d": 0,
-      "from": 3,
-      "k": 0,
-      "rest": 0,
-      "to": 4
-    },
-    {
-      "d": 0,
-      "from": 4,
-      "k": 0,
-      "rest": 0,
-      "to": 5
-    },
-    {
-      "d": 0,
-      "from": 0,
-      "k": 1,
-      "rest": 0,
-      "to": 6
-    },
-    {
-      "d": 0,
-      "from": 1,
-      "k": 1,
-      "rest": 0,
-      "to": 6
-    },
-    {
-      "d": 0,
-      "from": 2,
-      "k": 1,
-      "rest": 0,
-      "to": 6
-    },
-    {
-      "d": 0,
-      "from": 3,
-      "k": 1,
-      "rest": 0,
-      "to": 6
-    },
-    {
-      "d": 0,
-      "from": 4,
-      "k": 1,
-      "rest": 0,
-      "to": 6
-    },
-    {
-      "d": 0,
-      "from": 5,
-      "k": 1,
-      "rest": 0,
-      "to": 6
-    }
-  ],
-  "lastFirstDist": 1,
-  "nodes": [
-    {
-      "fixed": false,
-      "id": 0,
-      "mass": 1,
-      "position": 1,
-      "velocity": -0
-    },
-    {
-      "fixed": false,
-      "id": 1,
-      "mass": 1,
-      "position": 0.5,
-      "velocity": -0.88816534
-    },
-    {
-      "fixed": false,
-      "id": 2,
-      "mass": 1,
-      "position": -0.5,
-      "velocity": -0.88816534
-    },
-    {
-      "fixed": false,
-      "id": 3,
-      "mass": 1,
-      "position": -1,
-      "velocity": -0
-    },
-    {
-      "fixed": false,
-      "id": 4,
-      "mass": 1,
-      "position": -0.5,
-      "velocity": 0.88816534
-    },
-    {
-      "fixed": false,
-      "id": 5,
-      "mass": 1,
-      "position": 0.5,
-      "velocity": 0.88816534
-    },
-    {
-      "fixed": true,
-      "id": 6,
-      "mass": 1000000000,
-      "position": 0,
-      "velocity": 0
-    }
-  ],
-  "times": {
-    "dt": 0.001,
-    "t": 20,
-    "t0": 0
-  }
+  "aeroDynamicForce":
+   {
+   "enabled": true,
+   "scale": 2.0,
+   "v": 1.0,
+   "rho": 1.0,
+   "b": 1.0
+   } 
+ ,
+ "nodes": [
+   {
+     "id": 0,
+     "fixed": false,
+     "mass": 1.0,
+     "position": 1.0,
+     "velocity": 0.0
+   },
+   {
+     "id": 1,
+     "fixed": false,
+     "mass": 1.0,
+     "position": 0.0,
+     "velocity": -1.0
+   },
+   {
+     "id": 2,
+     "fixed": false,
+     "mass": 1.0,
+     "position": -1.0,
+     "velocity": 0.0
+   },
+   {
+     "id": 3,
+     "fixed": false,
+     "mass": 1.0,
+     "position": 0.0,
+     "velocity": 1.0
+   },
+   {
+     "id": 4,
+     "fixed": false,
+     "mass":1.0,
+     "position": 1.0,
+     "velocity": 0.0
+   },
+   {
+    "id": 5,
+    "fixed": false,
+    "mass":1.0,
+    "position": 0.0,
+    "velocity": -1.0
+  },
+   {
+     "id": 6,
+     "fixed": true,
+     "mass": 1000000000.0,
+     "position": 0.0,
+     "velocity":0.0
+   }
+ ],
+ "edges": [
+   { "from": 0, "to": 5, "k": 0.0, "d": 0.0, "rest": 0.0, "periodic": true },
+   { "from": 0, "to": 1, "k": 0.0, "d": 0.0, "rest": 0.0 },
+   { "from": 1, "to": 2, "k": 0.0, "d": 0.0, "rest": 0.0 },
+   { "from": 2, "to": 3, "k": 0.0, "d": 0.0, "rest": 0.0 },
+   { "from": 3, "to": 4, "k": 0.0, "d": 0.0, "rest": 0.0 },
+   { "from": 4, "to": 5, "k": 0.0, "d": 0.0, "rest": 0.0 },
+
+   { "from": 0, "to": 6, "k": 1.0, "d": 0.0, "rest": 0.0 },
+   { "from": 1, "to": 6, "k": 1.0, "d": 0.0, "rest": 0.0 },
+   { "from": 2, "to": 6, "k": 1.0, "d": 0.0, "rest": 0.0 },
+   { "from": 3, "to": 6, "k": 1.0, "d": 0.0, "rest": 0.0 },
+   { "from": 4, "to": 6, "k": 1.0, "d": 0.0, "rest": 0.0 },
+   { "from": 5, "to": 6, "k": 1.0, "d": 0.0, "rest": 0.0 }
+ ],
+ "lastFirstDist": 1.0
 }
