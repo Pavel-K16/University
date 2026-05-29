@@ -2,6 +2,7 @@ package inmemory
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"sync"
 )
@@ -21,6 +22,8 @@ type DecrAeroKoefStore struct {
 	decrement float64
 }
 
+func (d DecrAeroKoefStore) Decrement() float64 { return d.decrement }
+
 func NewDecrementStore() *DecrementStore {
 	return &DecrementStore{decrements: make(map[int][]DecrAeroKoefStore)}
 }
@@ -35,6 +38,25 @@ func (s *DecrementStore) GetDecrements(nodeID int) []DecrAeroKoefStore {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.decrements[nodeID]
+}
+
+// LookupDecrement возвращает лог. декремент для узла и пары аэрокоэффициентов (koef1, koef2).
+func (s *DecrementStore) LookupDecrement(nodeID int, koef1, koef2 float64) (float64, bool) {
+	if s == nil {
+		return 0, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, d := range s.decrements[nodeID] {
+		if aeroKoefEqual(d.koef1, koef1) && aeroKoefEqual(d.koef2, koef2) {
+			return d.decrement, true
+		}
+	}
+	return 0, false
+}
+
+func aeroKoefEqual(a, b float64) bool {
+	return math.Abs(a-b) <= 1e-9
 }
 
 func (s *DecrementStore) WriteDecrStoreToFiles() error {

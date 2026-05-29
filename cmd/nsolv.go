@@ -116,7 +116,7 @@ func main() {
 		t0 := cnf.Times.T0
 		dt := cnf.Times.Dt
 
-		f := 0.1
+		f := 0.01
 		b := 0.0
 
 		pointsStore := inmemory.NewPointsStore()
@@ -125,7 +125,7 @@ func main() {
 
 		graph := g.NewGraph()
 
-		solveWithGraph(cnf, graph, t0, T, dt, pointsStore, amplitudeStore, decrementStore, energyStore, phaseDiffStore, f, b, skipFirst)
+		solveWithGraph(cnf, graph, t0, T, dt, pointsStore, amplitudeStore, decrementStore, energyStore, f, b, skipFirst)
 
 		if err := energyStore.WriteEnergyStoreToFiles(graph.NodesNumbers()); err != nil {
 			log.Errorf("Error writing energy store to files: %v", err)
@@ -145,7 +145,7 @@ func main() {
 	log.Infof("Time taken: %v", time.Since(start))
 }
 
-func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, amplitudeStore *inmemory.AmplitudeStore, decrementStore *inmemory.DecrementStore, energyStore *inmemory.EnergyStore, phaseDiffStore *inmemory.PhaseDiffStore, f, b float64, skipFirst int) {
+func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, amplitudeStore *inmemory.AmplitudeStore, decrementStore *inmemory.DecrementStore, energyStore *inmemory.EnergyStore, f, b float64, skipFirst int) {
 	fmt.Println("\n=== Решение задачи о метрономах через графовую систему ===")
 	fmt.Printf("Начальные условия: t=0\n")
 	fmt.Printf("Диапазон расчёта: t=[%.2f, %.2f], dt=%.4f\n", t0, T, dt)
@@ -170,10 +170,10 @@ func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, points
 	}
 
 	utils.PrintLogDecrementForAllNodes(cnf, pointsStore, skipFirst, decrementStore, f, b)
-	utils.StorePhaseDiffForSweep(cnf, pointsStore, phaseDiffStore, f, b)
-	if err := phaseDiffStore.WritePhaseDiffStoreToFiles(); err != nil {
-		log.Errorf("Error writing phase diff store to files: %v", err)
+	if err := utils.WritePhasePointsForSingleRun(cnf, pointsStore, decrementStore, nil, f, b, skipFirst); err != nil {
+		log.Errorf("Error writing phase points: %v", err)
 	}
+	utils.PrintInterbladePhaseSummary(cnf, pointsStore, decrementStore, nil, f, b, skipFirst)
 }
 
 // solveParallelSweepJob один прогон для пары (f,b): интеграция без записи graph_points*
@@ -195,7 +195,7 @@ func solveParallelSweepJob(cnf *config.Graph, t0, T, dt float64, pointsStore *in
 
 	simulatePointsInMemory(solver, graph, t0, T, dt, pointsStore)
 	utils.StoreLogDecrementForAllNodes(cnf, pointsStore, skipFirst, decrementStore, frequencyStore, f, b)
-	utils.StorePhaseDiffForSweep(cnf, pointsStore, phaseDiffStore, f, b)
+	utils.StorePhaseDiffForSweep(cnf, pointsStore, phaseDiffStore, decrementStore, frequencyStore, f, b, skipFirst)
 }
 
 func simulatePointsInMemory(solver *equationsolver.GraphSolver, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore) {

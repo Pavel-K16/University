@@ -2,6 +2,7 @@ package inmemory
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"sync"
 )
@@ -35,6 +36,25 @@ func (s *FreqStore) GetFreqs(nodeID int) []FreqAeroKoef {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.freqs[nodeID]
+}
+
+// LookupFreq возвращает среднюю частоту (1/с) для узла и пары аэрокоэффициентов.
+func (s *FreqStore) LookupFreq(nodeID int, koef1, koef2 float64) (float64, bool) {
+	if s == nil {
+		return 0, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, w := range s.freqs[nodeID] {
+		if freqAeroKoefEqual(w.Koef1, koef1) && freqAeroKoefEqual(w.Koef2, koef2) {
+			return w.Freq, true
+		}
+	}
+	return 0, false
+}
+
+func freqAeroKoefEqual(a, b float64) bool {
+	return math.Abs(a-b) <= 1e-9
 }
 
 func (s *FreqStore) WriteFreqStoreToFiles() error {

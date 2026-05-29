@@ -7,6 +7,9 @@
   ../wolfram/paramsAndPoints/sumEnergyPoints.txt (t, E)
   ../wolfram/paramsAndPoints/energy_points*.txt (t, E по узлу) — только при PARALLEL=false
   ../wolfram/paramsAndPoints/d_energy_points*.txt (t, dE/dt по узлу) — только при PARALLEL=false
+  ../wolfram/paramsAndPoints/interblade_phase_points*.txt (t, Δφ, °) — только при PARALLEL=false
+  ../wolfram/paramsAndPoints/blade_phase_points*.txt (t, φ, °) — только при PARALLEL=false
+  ../wolfram/paramsAndPoints/phaseDiffStore*.json — Δφ(t) на картах sweep (PARALLEL=true)
 
 Результаты сохраняются в:
   plots/trajectories.png
@@ -132,6 +135,32 @@ def safe_tight_layout() -> None:
             plt.subplots_adjust(left=0.10, right=0.96, top=0.92, bottom=0.12)
         except Exception:
             pass
+
+
+def auto_plot_ylim(
+    y_arrays: list[np.ndarray],
+    *,
+    pad_frac: float = 0.08,
+    min_pad: float = 1.0,
+) -> tuple[float, float] | None:
+    """Автоматические пределы Y по данным (с отступом), без жёсткого ±180°."""
+    chunks: list[np.ndarray] = []
+    for y in y_arrays:
+        if y.size == 0:
+            continue
+        m = np.isfinite(y)
+        if np.any(m):
+            chunks.append(y[m])
+    if not chunks:
+        return None
+    all_y = np.concatenate(chunks)
+    lo, hi = float(np.min(all_y)), float(np.max(all_y))
+    if lo == hi:
+        pad = max(min_pad, abs(lo) * 0.05 + 1.0)
+        return lo - pad, hi + pad
+    span = hi - lo
+    pad = max(min_pad, span * pad_frac)
+    return lo - pad, hi + pad
 
 
 def load_two_column_txt(path: Path):
@@ -1196,98 +1225,74 @@ def generate_plots_and_html():
     elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файлы amplitude_points*.txt не найдены в {data_dir}")
 
-    # ---------- Межлопаточная фаза Δφ(t), градусы (single run) ----------
-    if (not PARALLEL_ONLY_DECREMENT_MAPS) and graph_files and movable_node_ids:
-        config_name = os.environ.get("CONFIG", "conf")
-        config_path = root_dir / "internal" / "config" / "confs" / f"{config_name}.json"
-        cfg: dict | None = None
-        if config_path.exists():
-            try:
-                with config_path.open("r", encoding="utf-8") as f:
-                    cfg = json.load(f)
-            except Exception:
-                cfg = None
-        trajectories: dict[int, tuple[np.ndarray, np.ndarray]] = {}
-        for path in graph_files:
-            m = re.match(r"^graph_points(\d+)$", path.stem)
-            if not m:
+    # ---------- Межлопаточная фаза Δφ(t) из interblade_phase_points*.txt (Go, single run) ----------
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and movable_node_ids:
+        plt.figure(figsize=(10, 6))
+        colors = plt.cm.tab10.colors
+        interblade_y: list[np.ndarray] = []
+        for idx, node_id in enumerate(movable_node_ids):
+            neighbor_id = movable_node_ids[(idx + 1) % len(movable_node_ids)]
+            path = data_dir / f"interblade_phase_points{node_id}.txt"
+            if not path.exists():
+                print(f"Файл не найден: {path}")
                 continue
-            t, x = load_two_column_txt(path)
-            if t.size == 0:
+            t_ph, ph = load_two_column_txt(path)
+            if t_ph.size == 0:
                 continue
-            trajectories[int(m.group(1))] = (t, x)
-        if cfg is not None and trajectories:
-            plt.figure(figsize=(10, 6))
-            colors = plt.cm.tab10.colors
-            for idx, node_id in enumerate(movable_node_ids):
-                neighbor_id = movable_node_ids[(idx + 1) % len(movable_node_ids)]
-                if node_id not in trajectories or neighbor_id not in trajectories:
-                    continue
-                x_eq_a = equilibrium_for_node_from_config(cfg, node_id)
-                x_eq_b = equilibrium_for_node_from_config(cfg, neighbor_id)
-                if x_eq_a is None or x_eq_b is None:
-                    continue
-                t_a, x_a = trajectories[node_id]
-                t_b, x_b = trajectories[neighbor_id]
-                n = min(t_a.size, t_b.size)
-                t_ph, ph = interblade_phase_diff_deg_numpy(
-                    t_a[:n], x_a[:n], x_b[:n], x_eq_a, x_eq_b
-                )
-                if t_ph.size == 0:
-                    continue
-                label = f"φ({neighbor_id})−φ({node_id})"
-                mean_deg = float(np.mean(ph))
-                std_deg = float(np.std(ph))
-                phase_stats_rows.append((label, mean_deg, std_deg))
-                phase_has_data = True
-                plt.plot(
-                    t_ph,
-                    ph,
-                    label=label,
-                    color=colors[idx % len(colors)],
-                )
-            if phase_has_data:
-                for label, mean_deg, std_deg in phase_stats_rows:
-                    print(f"  {label}: среднее = {mean_deg:.2f}°, СКО = {std_deg:.2f}°")
-                plt.xlabel("t")
-                plt.ylabel("Δφ, °")
-                plt.title("Межлопаточная разность фаз (развёрнутая)")
-                plt.ylim(-180.0, 180.0)
-                plt.grid(True, alpha=0.3)
-                plt.legend()
-                safe_tight_layout()
-                plt.savefig(plots_dir / phase_img_name, dpi=200)
-            plt.close()
+            label = f"φ({neighbor_id})−φ({node_id})"
+            phase_stats_rows.append((label, float(np.mean(ph)), float(np.std(ph))))
+            phase_has_data = True
+            interblade_y.append(ph)
+            plt.plot(
+                t_ph,
+                ph,
+                label=label,
+                color=colors[idx % len(colors)],
+            )
+        if phase_has_data:
+            plt.xlabel("t")
+            plt.ylabel("Δφ, °")
+            plt.title("Межлопаточная разность фаз (развёрнутая)")
+            ylim = auto_plot_ylim(interblade_y)
+            if ylim is not None:
+                plt.ylim(*ylim)
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            safe_tight_layout()
+            plt.savefig(plots_dir / phase_img_name, dpi=200)
+        plt.close()
 
-            plt.figure(figsize=(10, 6))
-            for idx, node_id in enumerate(movable_node_ids):
-                if node_id not in trajectories:
-                    continue
-                x_eq = equilibrium_for_node_from_config(cfg, node_id)
-                if x_eq is None:
-                    continue
-                t_a, x_a = trajectories[node_id]
-                t_ph, ph = blade_phase_deg_numpy(t_a, x_a, x_eq, unwrap=True)
-                if t_ph.size == 0:
-                    continue
-                blade_phase_has_data = True
-                plt.plot(
-                    t_ph,
-                    ph,
-                    label=f"φ({node_id})",
-                    color=colors[idx % len(colors)],
-                )
-            if blade_phase_has_data:
-                plt.xlabel("t")
-                plt.ylabel("φ, °")
-                plt.title("Фаза колебаний лопаток (развёрнутая)")
-                plt.grid(True, alpha=0.3)
-                plt.legend()
-                safe_tight_layout()
-                plt.savefig(plots_dir / blade_phase_img_name, dpi=200)
-            plt.close()
+        plt.figure(figsize=(10, 6))
+        blade_y: list[np.ndarray] = []
+        for idx, node_id in enumerate(movable_node_ids):
+            path = data_dir / f"blade_phase_points{node_id}.txt"
+            if not path.exists():
+                continue
+            t_ph, ph = load_two_column_txt(path)
+            if t_ph.size == 0:
+                continue
+            blade_phase_has_data = True
+            blade_y.append(ph)
+            plt.plot(
+                t_ph,
+                ph,
+                label=f"φ({node_id})",
+                color=colors[idx % len(colors)],
+            )
+        if blade_phase_has_data:
+            plt.xlabel("t")
+            plt.ylabel("φ, °")
+            plt.title("Фаза колебаний лопаток")
+            ylim = auto_plot_ylim(blade_y)
+            if ylim is not None:
+                plt.ylim(*ylim)
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+            safe_tight_layout()
+            plt.savefig(plots_dir / blade_phase_img_name, dpi=200)
+        plt.close()
 
-    # ---------- Декремент затухания по пикам decrement_points*.txt ----------
+    # ---------- Декремент затухания по периодам decrement_points*.txt ----------
     dec_files = []
     if movable_node_ids:
         for node_id in movable_node_ids:
@@ -1312,7 +1317,7 @@ def generate_plots_and_html():
 
         plt.xlabel("t")
         plt.ylabel("delta_n")
-        plt.title("Logarithmic decrement per peak pair")
+        plt.title("Logarithmic decrement per oscillation period")
         plt.grid(True, alpha=0.3)
         plt.legend()
         safe_tight_layout()
@@ -1690,14 +1695,14 @@ def generate_plots_and_html():
 
     formulas_html = """
 <div class="formula-block" style="line-height:1.8">
-  <p><b>Логарифмический декремент по соседним пикам:</b></p>
+  <p><b>Логарифмический декремент за период (пики через один):</b></p>
   <math display="block">
     <msub><mi>&delta;</mi><mi>n</mi></msub>
     <mo>=</mo>
     <mi>ln</mi>
     <mfrac>
       <msub><mi>A</mi><mi>n</mi></msub>
-      <msub><mi>A</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub>
+      <msub><mi>A</mi><mrow><mi>n</mi><mo>+</mo><mn>2</mn></mrow></msub>
     </mfrac>
   </math>
 
@@ -1959,7 +1964,7 @@ def generate_plots_and_html():
   </div>
 
   <div class="block">
-    <h2>Декремент затухания по парам пиков (decrement_points*.txt)</h2>
+    <h2>Декремент затухания по периодам (decrement_points*.txt)</h2>
     {"<p>Файлы не найдены или пусты.</p>" if not dec_has_data else f'<img src="{dec_img_name}" alt="Decrement deltas">'}
   </div>
   '''}
@@ -2003,14 +2008,14 @@ def generate_plots_and_html():
       <mo>|</mo>
     </math>
 
-    <p><b>Декремент по соседним пикам:</b></p>
+    <p><b>Декремент за период (пики через один):</b></p>
     <math display="block">
       <msub><mi>&delta;</mi><mi>n</mi></msub>
       <mo>=</mo>
       <mi>ln</mi>
       <mfrac>
         <msub><mi>A</mi><mi>n</mi></msub>
-        <msub><mi>A</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub>
+        <msub><mi>A</mi><mrow><mi>n</mi><mo>+</mo><mn>2</mn></mrow></msub>
       </mfrac>
     </math>
 

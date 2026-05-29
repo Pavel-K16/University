@@ -79,22 +79,22 @@ func writeDecrementPoints(nodeID int, maxs []maxPoint, skipFirstMaxima int) erro
 	defer f.Close()
 
 	start := skipFirstMaxima
-	if start > len(maxs)-2 {
-		start = len(maxs) - 2
+	if start > len(maxs)-3 {
+		start = len(maxs) - 3
 	}
 	if start < 0 {
 		return nil
 	}
 
-	for i := start; i < len(maxs)-1; i++ {
+	for i := start; i < len(maxs)-2; i++ {
 		a1 := maxs[i].a
-		a2 := maxs[i+1].a
+		a2 := maxs[i+2].a
 		if a1 <= 0 || a2 <= 0 {
 			continue
 		}
 		delta := math.Log(a1 / a2)
-		// Время привязываем к правому пику пары (t_{n+1})
-		fmt.Fprintf(f, "%.10f %.10f\n", maxs[i+1].t, delta)
+		// Время привязываем к пику через один период (t_{n+2})
+		fmt.Fprintf(f, "%.10f %.10f\n", maxs[i+2].t, delta)
 	}
 
 	return nil
@@ -112,9 +112,9 @@ func xMonotoneNonDecreasing(points []inmemory.Point, tol float64) bool {
 
 func EstimateLogDecrementFromGraphPoints(points []inmemory.Point, xEq float64, skipFirstMaxima int) (delta float64, used int, err error) {
 	maxs := FindAmplitudeMaximaInMemory(points, xEq)
-	if len(maxs) < 2 {
+	if len(maxs) < 3 {
 		if len(points) == 0 {
-			return 0, 0, fmt.Errorf("not enough amplitude maxima: maxs=%d (need >=2 oscillation peaks; increase T or reduce damping)", len(maxs))
+			return 0, 0, fmt.Errorf("not enough amplitude maxima: maxs=%d (need >=3 peaks for period decrement; increase T or reduce damping)", len(maxs))
 		}
 
 		allAtEq := true
@@ -133,25 +133,25 @@ func EstimateLogDecrementFromGraphPoints(points []inmemory.Point, xEq float64, s
 			return zeroMaxs, 0, nil
 		}
 
-		if len(maxs) == 1 {
+		if len(maxs) <= 2 {
 			return oneMax, 0, nil
 		}
 
-		return 0, 0, fmt.Errorf("not enough amplitude maxima: maxs=%d (need >=2 oscillation peaks; increase T or reduce damping)", len(maxs))
+		return 0, 0, fmt.Errorf("not enough amplitude maxima: maxs=%d (need >=3 peaks for period decrement; increase T or reduce damping)", len(maxs))
 	}
 
 	start := skipFirstMaxima
 	// Если интервал времени короткий, а максимумов мало, то строгое пропускание первых
-	// может оставить меньше 2 максимумов. В этом случае уменьшим start так,
-	// чтобы хотя бы посчитать по 2 максимумам.
-	if start > len(maxs)-2 {
-		start = len(maxs) - 2
+	// может оставить меньше 3 максимумов. В этом случае уменьшим start так,
+	// чтобы хотя бы посчитать по одному периоду (пики i и i+2).
+	if start > len(maxs)-3 {
+		start = len(maxs) - 3
 	}
 
-	deltas := make([]float64, 0, len(maxs)-start-1)
-	for i := start; i < len(maxs)-1; i++ {
+	deltas := make([]float64, 0, len(maxs)-start-2)
+	for i := start; i < len(maxs)-2; i++ {
 		a1 := maxs[i].a
-		a2 := maxs[i+1].a
+		a2 := maxs[i+2].a
 		if a1 <= 0 || a2 <= 0 {
 			continue
 		}
@@ -234,9 +234,12 @@ func PrintLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.Point
 			continue
 		}
 		decayPercent := (1.0 - math.Exp(-r.delta)) * 100.0
+		fk := GetAvgFrequency4Nodes(r.nodeID, r.maxs, skipFirstMaxima, f, b)
+		deltaFreq := r.delta * fk.Freq
+		decayPercentFK := (1.0 - math.Exp(-r.delta*fk.Freq)) * 100.0
 		// delta показываем с нормальной точностью, иначе разные значения выглядят одинаково.
-		fmt.Printf("Node %d: delta=%.6f, amplitude decay per peak=%.2f%%\n",
-			r.nodeID, r.delta, decayPercent)
+		fmt.Printf("Node %d: delta=%.6f; %.6f, amp dec per period=%.6f%%; %.6f%%\n",
+			r.nodeID, r.delta, deltaFreq, decayPercent, decayPercentFK)
 	}
 
 	// Детальные логи по каждому узлу (A_n и delta_n) в консоль и в файл.
@@ -250,15 +253,17 @@ func PrintLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.Point
 		}
 
 		decayPercent := (1.0 - math.Exp(-r.delta)) * 100.0
-		head := fmt.Sprintf("Node %d: xEq=%.8f, skipFirst=%d, usedPairs=%d, delta=%.8f, decay=%.2f%%\n",
-			r.nodeID, r.xEq, skipFirstMaxima, r.used, r.delta, decayPercent)
+		fk := GetAvgFrequency4Nodes(r.nodeID, r.maxs, skipFirstMaxima, f, b)
+		deltaFreq := r.delta * fk.Freq
+		head := fmt.Sprintf("Node %d: xEq=%.8f, skipFirst=%d, usedPairs=%d, delta=%.8f, %.8f, decay=%.2f%%\n",
+			r.nodeID, r.xEq, skipFirstMaxima, r.used, r.delta, deltaFreq, decayPercent)
 		sb.WriteString(head)
 
-		for i := skipFirstMaxima; i < len(r.maxs)-1; i++ {
+		for i := skipFirstMaxima; i < len(r.maxs)-2; i++ {
 			line := fmt.Sprintf("  A_%d=%.8f (t=%.4f), A_%d=%.8f (t=%.4f), delta=%.8f\n",
 				i, r.maxs[i].a, r.maxs[i].t,
-				i+1, r.maxs[i+1].a, r.maxs[i+1].t,
-				math.Log(r.maxs[i].a/r.maxs[i+1].a))
+				i+2, r.maxs[i+2].a, r.maxs[i+2].t,
+				math.Log(r.maxs[i].a/r.maxs[i+2].a))
 			sb.WriteString(line)
 		}
 		sb.WriteString("\n")
@@ -304,18 +309,14 @@ func GetAvgFrequency4Nodes(nodeID int, maxs []maxPoint, skipFirstMaxima int, f, 
 	n := 0.0
 
 	start := skipFirstMaxima
-	if start > len(maxs)-2 {
-		start = len(maxs) - 2
+	if start > len(maxs)-3 {
+		start = len(maxs) - 3
 	}
 	if start < 0 {
 		start = 0
 	}
 
-	for i := start; i < len(maxs)-1; {
-		if i+2 >= len(maxs) {
-			break
-		}
-
+	for i := start; i < len(maxs)-2; i++ {
 		t1 := maxs[i].t
 		t2 := maxs[i+2].t
 		dt := t2 - t1
@@ -324,7 +325,6 @@ func GetAvgFrequency4Nodes(nodeID int, maxs []maxPoint, skipFirstMaxima int, f, 
 			w += freq
 			n += 1.0
 		}
-		i += 2
 	}
 
 	if n == 0 {
