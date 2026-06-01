@@ -116,7 +116,7 @@ func main() {
 		t0 := cnf.Times.T0
 		dt := cnf.Times.Dt
 
-		f := 0.01
+		f := 0.1
 		b := 0.0
 
 		pointsStore := inmemory.NewPointsStore()

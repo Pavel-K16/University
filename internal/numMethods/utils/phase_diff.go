@@ -22,8 +22,7 @@ const (
 
 // StorePhaseDiffForSweep сохраняет разность фаз (в градусах) между узлом и следующим
 // подвижным соседом по кольцу для пары аэрокоэффициентов (f, b).
-// Фаза восстанавливается согласованно с НУ Самойловича: atan2(-(v+δ_rate·a), ν·a),
-// где ν и δ_rate=δ_log·ν берутся из frequencyStore и decrementStore для этого (f,b).
+// Фаза: variant A с локальными δ_rate(t), ν(t) (ZOH по пикам амплитуды).
 func StorePhaseDiffForSweep(
 	cnf *config.Graph,
 	pointsStore *inmemory.PointsStore,
@@ -50,14 +49,11 @@ func StorePhaseDiffForSweep(
 			continue
 		}
 
-		deltaF_A, wA := modalPhaseParams(cnf, pointsStore, decrementStore, frequencyStore, nodeID, f, b, skipFirstMaxima, xEqA)
-		deltaF_B, wB := modalPhaseParams(cnf, pointsStore, decrementStore, frequencyStore, neighborID, f, b, skipFirstMaxima, xEqB)
-
 		ptsA := pointsStore.GetPoints(nodeID)
 		ptsB := pointsStore.GetPoints(neighborID)
 		meanDeg, stdDeg, tOut, phaseOut, absPhaseOut := interbladePhaseDiffDeg(
 			ptsA, ptsB, xEqA, xEqB,
-			deltaF_A, wA, deltaF_B, wB,
+			skipFirstMaxima,
 			phaseDiffDownsample,
 		)
 		if len(tOut) == 0 {
@@ -106,26 +102,18 @@ func WritePhasePointsForSingleRun(
 			continue
 		}
 
-		deltaF_A, wA := modalPhaseParams(cnf, pointsStore, decrementStore, frequencyStore, nodeID, f, b, skipFirstMaxima, xEqA)
-		deltaF_B, wB := modalPhaseParams(cnf, pointsStore, decrementStore, frequencyStore, neighborID, f, b, skipFirstMaxima, xEqB)
-
 		ptsA := pointsStore.GetPoints(nodeID)
 		ptsB := pointsStore.GetPoints(neighborID)
 		_, _, tOut, phaseOut, absOut := interbladePhaseDiffDeg(
 			ptsA, ptsB, xEqA, xEqB,
-			deltaF_A, wA, deltaF_B, wB,
+			skipFirstMaxima,
 			0,
 		)
 		if len(tOut) == 0 {
 			continue
 		}
 
-		display := make([]float64, len(phaseOut))
-		for j, p := range phaseOut {
-			display[j] = -p
-		}
-
-		if err := writeTwoColumnSeries(fmt.Sprintf(interbladePhasePointsFileTmpl, nodeID), tOut, display); err != nil {
+		if err := writeTwoColumnSeries(fmt.Sprintf(interbladePhasePointsFileTmpl, nodeID), tOut, phaseOut); err != nil {
 			return err
 		}
 		if err := writeTwoColumnSeries(fmt.Sprintf(bladePhasePointsFileTmpl, nodeID), tOut, absOut); err != nil {
@@ -176,22 +164,18 @@ func PrintInterbladePhaseSummary(
 			continue
 		}
 
-		deltaF_A, wA := modalPhaseParams(cnf, pointsStore, decrementStore, frequencyStore, nodeID, f, b, skipFirstMaxima, xEqA)
-		deltaF_B, wB := modalPhaseParams(cnf, pointsStore, decrementStore, frequencyStore, neighborID, f, b, skipFirstMaxima, xEqB)
-
 		ptsA := pointsStore.GetPoints(nodeID)
 		ptsB := pointsStore.GetPoints(neighborID)
 		meanDeg, stdDeg, tOut, _, _ := interbladePhaseDiffDeg(
 			ptsA, ptsB, xEqA, xEqB,
-			deltaF_A, wA, deltaF_B, wB,
+			skipFirstMaxima,
 			phaseDiffDownsample,
 		)
 		if len(tOut) == 0 {
 			continue
 		}
 
-		// meanDeg внутри: φ(node)−φ(neighbor); в подписи — φ(neighbor)−φ(node).
-		fmt.Printf("  φ(%d)−φ(%d): среднее = %.2f°, СКО = %.2f°\n", neighborID, nodeID, -meanDeg, stdDeg)
+		fmt.Printf("  φ(%d)−φ(%d): среднее = %.2f°, СКО = %.2f°\n", neighborID, nodeID, meanDeg, stdDeg)
 	}
 }
 
@@ -206,57 +190,43 @@ func movableNodeIDs(cnf *config.Graph) []int {
 	return ids
 }
 
-// modalPhaseParams: δ_rate [1/с] = δ_log · ν, ν [1/с] — из store или пересчёт по траектории.
-func modalPhaseParams(
-	cnf *config.Graph,
-	pointsStore *inmemory.PointsStore,
-	decrementStore *inmemory.DecrementStore,
-	frequencyStore *inmemory.FreqStore,
-	nodeID int,
-	f, b float64,
-	skipFirstMaxima int,
-	xEq float64,
-) (deltaRate, nu float64) {
-	if decrementStore != nil && frequencyStore != nil {
-		logDec, okDec := decrementStore.LookupDecrement(nodeID, f, b)
-		freq, okFreq := frequencyStore.LookupFreq(nodeID, f, b)
-		if okDec && okFreq && freq > 0 {
-			return logDec * freq, freq * 2 * math.Pi
-		}
-	}
-	if pointsStore == nil {
-		return 0, 1
-	}
-	pts := pointsStore.GetPoints(nodeID)
-	maxs := FindAmplitudeMaximaInMemory(pts, xEq)
-	logDec, _, err := EstimateLogDecrementFromGraphPoints(pts, xEq, skipFirstMaxima)
-	fk := GetAvgFrequency4Nodes(nodeID, maxs, skipFirstMaxima, f, b)
-	if err != nil || fk.Freq <= 0 {
-		return 0, 1
-	}
-	return logDec * fk.Freq, fk.Freq * 2 * math.Pi
-}
-
-// phaseModalRad — ψ = atan2(-(v + δ_rate·a), ν·a), согласовано с phaseShift / Самойлович.
-func phaseModalRad(a, v, deltaF, w float64) float64 {
-	if w == 0 {
+// phaseModalRadFromSample — ψ = atan2(-(v+δ_rate·a), ν·a) из одной точки ZOH.
+func phaseModalRadFromSample(a, v float64, sample Delta) float64 {
+	if sample.freq <= 0 {
 		return math.Atan2(-v, a)
 	}
+	deltaRate := sample.delta * sample.freq
+	nuRad := sample.freq * 2 * math.Pi
+	return math.Atan2(-(v+deltaRate*a), nuRad*a)
+}
 
-	//log.Debugf("deltaF: %f, w: %f, a: %f, v: %f", deltaF, w, a, v)
-
-	return math.Atan2(-(v + deltaF*a), w*a)
+// phaseModalRadAt — ψ для одной лопатки (blade_phase_points).
+func phaseModalRadAt(a, v, t float64, samples []Delta, holdUntilT float64) float64 {
+	sample, ok := DeltaAtForPhase(samples, t, holdUntilT)
+	if !ok {
+		return math.Atan2(-v, a)
+	}
+	return phaseModalRadFromSample(a, v, sample)
 }
 
 func interbladePhaseDiffDeg(
 	ptsA, ptsB []inmemory.Point,
 	xEqA, xEqB float64,
-	deltaF_A, wA, deltaF_B, wB float64,
+	skipFirstMaxima int,
 	sampleCount int,
 ) (meanDeg, stdDeg float64, tOut, phaseOut, absPhaseOut []float64) {
 	n := len(ptsA)
 	if n != len(ptsB) || n < 5 {
 		return 0, 0, nil, nil, nil
+	}
+
+	// δ с первого периода (start=0); первые skipFirstMaxima окон ZOH не переключаем.
+	samplesA := GetDeltasFromAmplitudeMaxima(FindAmplitudeMaximaForPhase(ptsA, xEqA), 0)
+	samplesB := GetDeltasFromAmplitudeMaxima(FindAmplitudeMaximaForPhase(ptsB, xEqB), 0)
+	// Общий hold для пары: обе лопатки на δ[0], пока не созреют пики у обеих.
+	holdPair := phaseHoldUntilT(samplesA, skipFirstMaxima)
+	if hB := phaseHoldUntilT(samplesB, skipFirstMaxima); hB > holdPair {
+		holdPair = hB
 	}
 
 	tSeries := make([]float64, 0, n-2)
@@ -279,9 +249,17 @@ func interbladePhaseDiffDeg(
 			continue
 		}
 
-		pa := phaseModalRad(dispA, va, deltaF_A, wA)
-		pb := phaseModalRad(dispB, vb, deltaF_B, wB)
-		tSeries = append(tSeries, ptsA[i].T)
+		ti := ptsA[i].T
+		sa, sb, ok := deltaPairAtSynced(samplesA, samplesB, ti, holdPair)
+		var pa, pb float64
+		if !ok {
+			pa = math.Atan2(-va, dispA)
+			pb = math.Atan2(-vb, dispB)
+		} else {
+			pa = phaseModalRadFromSample(dispA, va, sa)
+			pb = phaseModalRadFromSample(dispB, vb, sb)
+		}
+		tSeries = append(tSeries, ti)
 		paSeries = append(paSeries, pa*180.0/math.Pi)
 		pbSeries = append(pbSeries, pb*180.0/math.Pi)
 	}
@@ -290,15 +268,22 @@ func interbladePhaseDiffDeg(
 		return 0, 0, nil, nil, nil
 	}
 
-	unwrappedPa := unwrapDegrees(paSeries)
-	unwrappedPb := unwrapDegrees(pbSeries)
-	unwrappedAbs := unwrappedPa
-
-	diffSeries := make([]float64, len(unwrappedPa))
-	for i := range diffSeries {
-		diffSeries[i] = unwrappedPa[i] - unwrappedPb[i]
+	// Как в plot_points.interblade_phase_diff_deg_numpy:
+	// 1) мгновенная разность φ_B−φ_A (градусы, ещё с обёрткой atan2);
+	// 2) unwrap по времени уже по diff (не по каждой фазе отдельно);
+	// 3) снять лишние 360°·round(median/360°);
+	// 4) каждую точку в (−180°, +180°].
+	rawDiff := make([]float64, len(paSeries))
+	for i := range rawDiff {
+		rawDiff[i] = pbSeries[i] - paSeries[i]
 	}
-	normalizedDiff := normalizePhaseBranchDegrees(diffSeries)
+	unwrappedDiff := unwrapDegrees(rawDiff)
+	normalizedDiff := normalizePhaseBranchDegrees(unwrappedDiff)
+	for i := range normalizedDiff {
+		normalizedDiff[i] = wrapToSigned180(normalizedDiff[i])
+	}
+
+	unwrappedAbs := unwrapDegrees(paSeries)
 
 	meanDeg, stdDeg = meanStd(normalizedDiff)
 	if sampleCount <= 0 {
@@ -312,7 +297,16 @@ func interbladePhaseDiffDeg(
 	return meanDeg, stdDeg, tOut, phaseOut, absPhaseOut
 }
 
-// normalizePhaseBranchDegrees — одна ветка (−180°…+180°): вычитаем 360°·round(median/360°).
+// wrapToSigned180 приводит угол в (−180°, +180°].
+func wrapToSigned180(deg float64) float64 {
+	d := math.Mod(deg+180.0, 360.0)
+	if d < 0 {
+		d += 360.0
+	}
+	return d - 180.0
+}
+
+// normalizePhaseBranchDegrees — diff − 360°·round(median(diff)/360°).
 func normalizePhaseBranchDegrees(deg []float64) []float64 {
 	if len(deg) == 0 {
 		return deg

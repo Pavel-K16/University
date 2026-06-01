@@ -64,7 +64,7 @@ func FindAmplitudeMaximaInMemory(points []inmemory.Point, xEq float64) []maxPoin
 	if len(points) == 0 {
 		return nil
 	}
-	maxs := make([]maxPoint, 0)
+	maxs := findAmplitudeMaximaInterior(points, xEq)
 
 	amp := func(i int) float64 {
 		return math.Abs(points[i].X - xEq)
@@ -75,8 +75,23 @@ func FindAmplitudeMaximaInMemory(points []inmemory.Point, xEq float64) []maxPoin
 		a0 := amp(0)
 		a1 := amp(1)
 		if a0 > a1 {
-			maxs = append(maxs, maxPoint{t: points[0].T, a: a0})
+			maxs = append([]maxPoint{{t: points[0].T, a: a0}}, maxs...)
 		}
+	}
+
+	return maxs
+}
+
+// FindAmplitudeMaximaForPhase — пики без левого края t=t0: ложный стартовый максимум
+// даёт неверный δ[0] и артефакт Δφ в начале графика (узлы с a(t0)≈max).
+func FindAmplitudeMaximaForPhase(points []inmemory.Point, xEq float64) []maxPoint {
+	return findAmplitudeMaximaInterior(points, xEq)
+}
+
+func findAmplitudeMaximaInterior(points []inmemory.Point, xEq float64) []maxPoint {
+	maxs := make([]maxPoint, 0)
+	amp := func(i int) float64 {
+		return math.Abs(points[i].X - xEq)
 	}
 
 	for i := 1; i < len(points)-1; i++ {

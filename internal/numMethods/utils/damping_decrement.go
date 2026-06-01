@@ -78,13 +78,11 @@ func writeDecrementPoints(nodeID int, maxs []maxPoint, skipFirstMaxima int) erro
 	}
 	defer f.Close()
 
-	start := skipFirstMaxima
-	if start > len(maxs)-3 {
-		start = len(maxs) - 3
-	}
-	if start < 0 {
+	if len(maxs) < 3 {
 		return nil
 	}
+
+	start := clampSkipFirstMaxima(skipFirstMaxima, len(maxs))
 
 	for i := start; i < len(maxs)-2; i++ {
 		a1 := maxs[i].a
@@ -108,6 +106,129 @@ func xMonotoneNonDecreasing(points []inmemory.Point, tol float64) bool {
 		}
 	}
 	return true
+}
+
+// Delta — локальные δ_log и f_Hz на сетке пиков (t = t_{i+2}); для ZOH в variant A.
+type Delta struct {
+	delta float64
+	freq  float64
+	t     float64
+}
+
+func DeltaIndexAt(deltas []Delta, t float64) int {
+	n := len(deltas)
+	if n == 0 || t < deltas[0].t {
+		return -1
+	}
+	lo, hi := 0, n
+	for lo < hi {
+		mid := (lo + hi) / 2
+		if deltas[mid].t <= t {
+			lo = mid + 1
+		} else {
+			hi = mid
+		}
+	}
+	return lo - 1
+}
+
+func DeltaAt(deltas []Delta, t float64) (Delta, bool) {
+	if len(deltas) == 0 {
+		return Delta{}, false
+	}
+	if t < deltas[0].t {
+		// Обратный ZOH: до первого пика используем первый известный δ и f.
+		return deltas[0], true
+	}
+	k := DeltaIndexAt(deltas, t)
+	if k < 0 {
+		return Delta{}, false
+	}
+	return deltas[k], true
+}
+
+// phaseHoldUntilT — до этого времени в фазе держим δ[0] (без ранних переключений ZOH).
+func phaseHoldUntilT(samples []Delta, skipFirstMaxima int) float64 {
+	if len(samples) == 0 {
+		return 0
+	}
+	idx := skipFirstMaxima
+	if idx < 1 {
+		idx = 1
+	}
+	if idx >= len(samples) {
+		return math.MaxFloat64
+	}
+	return samples[idx].t
+}
+
+func DeltaAtForPhase(deltas []Delta, t, holdUntilT float64) (Delta, bool) {
+	if len(deltas) == 0 {
+		return Delta{}, false
+	}
+	if t < holdUntilT {
+		return deltas[0], true
+	}
+	return DeltaAt(deltas, t)
+}
+
+// deltaPairAtSynced — для пары лопаток один индекс ZOH (min(kA,kB)), чтобы δ не переключался
+// у соседей в разные моменты; до holdUntilT — δ[0] у каждой своей лопатки.
+func deltaPairAtSynced(samplesA, samplesB []Delta, t, holdUntilT float64) (Delta, Delta, bool) {
+	if len(samplesA) == 0 || len(samplesB) == 0 {
+		return Delta{}, Delta{}, false
+	}
+	if t < holdUntilT {
+		return samplesA[0], samplesB[0], true
+	}
+	kA := DeltaIndexAt(samplesA, t)
+	kB := DeltaIndexAt(samplesB, t)
+	if kA < 0 || kB < 0 {
+		return Delta{}, Delta{}, false
+	}
+	k := kA
+	if kB < k {
+		k = kB
+	}
+	return samplesA[k], samplesB[k], true
+}
+
+func clampSkipFirstMaxima(skip, numMaxs int) int {
+	start := skip
+	if start > numMaxs-3 {
+		start = numMaxs - 3
+	}
+	if start < 0 {
+		start = 0
+	}
+	return start
+}
+
+// GetDeltasFromAmplitudeMaxima — δ_log и f_Hz за период между пиками i и i+2, время t_{i+2}.
+func GetDeltasFromAmplitudeMaxima(maxs []maxPoint, start int) []Delta {
+	if len(maxs) < 3 {
+		return nil
+	}
+	start = clampSkipFirstMaxima(start, len(maxs))
+	capN := len(maxs) - start - 2
+	if capN < 0 {
+		capN = 0
+	}
+	out := make([]Delta, 0, capN)
+	for i := start; i < len(maxs)-2; i++ {
+		a1 := maxs[i].a
+		a2 := maxs[i+2].a
+		dt := maxs[i+2].t - maxs[i].t
+		if a1 <= 0 || a2 <= 0 || dt <= 0 {
+			continue
+		}
+		out = append(out, Delta{
+			delta: math.Log(a1 / a2),
+			freq:  1 / dt,
+			t:     maxs[i+2].t,
+		})
+	}
+	return out
 }
 
 func EstimateLogDecrementFromGraphPoints(points []inmemory.Point, xEq float64, skipFirstMaxima int) (delta float64, used int, err error) {
@@ -140,23 +261,7 @@ func EstimateLogDecrementFromGraphPoints(points []inmemory.Point, xEq float64, s
 		return 0, 0, fmt.Errorf("not enough amplitude maxima: maxs=%d (need >=3 peaks for period decrement; increase T or reduce damping)", len(maxs))
 	}
 
-	start := skipFirstMaxima
-	// Если интервал времени короткий, а максимумов мало, то строгое пропускание первых
-	// может оставить меньше 3 максимумов. В этом случае уменьшим start так,
-	// чтобы хотя бы посчитать по одному периоду (пики i и i+2).
-	if start > len(maxs)-3 {
-		start = len(maxs) - 3
-	}
-
-	deltas := make([]float64, 0, len(maxs)-start-2)
-	for i := start; i < len(maxs)-2; i++ {
-		a1 := maxs[i].a
-		a2 := maxs[i+2].a
-		if a1 <= 0 || a2 <= 0 {
-			continue
-		}
-		deltas = append(deltas, math.Log(a1/a2))
-	}
+	deltas := GetDeltasFromAmplitudeMaxima(maxs, skipFirstMaxima)
 
 	if len(deltas) == 0 {
 		return 0, 0, fmt.Errorf("failed to compute deltas (all zeros?)")
@@ -164,7 +269,7 @@ func EstimateLogDecrementFromGraphPoints(points []inmemory.Point, xEq float64, s
 
 	var sum float64
 	for _, d := range deltas {
-		sum += d
+		sum += d.delta
 	}
 	return sum / float64(len(deltas)), len(deltas), nil
 }
@@ -305,30 +410,8 @@ func StoreLogDecrementForAllNodes(cnf *config.Graph, pointsStore *inmemory.Point
 }
 
 func GetAvgFrequency4Nodes(nodeID int, maxs []maxPoint, skipFirstMaxima int, f, b float64) inmemory.FreqAeroKoef {
-	w := 0.0
-	n := 0.0
-
-	start := skipFirstMaxima
-	if start > len(maxs)-3 {
-		start = len(maxs) - 3
-	}
-	if start < 0 {
-		start = 0
-	}
-
-	for i := start; i < len(maxs)-2; i++ {
-		t1 := maxs[i].t
-		t2 := maxs[i+2].t
-		dt := t2 - t1
-		if dt > 0 {
-			freq := 1 / dt
-			w += freq
-			n += 1.0
-		}
-	}
-
-	if n == 0 {
-		//log.Infof("No frequencies found for node %d", nodeID)
+	samples := GetDeltasFromAmplitudeMaxima(maxs, skipFirstMaxima)
+	if len(samples) == 0 {
 		return inmemory.FreqAeroKoef{
 			Koef1: f,
 			Koef2: b,
@@ -336,9 +419,14 @@ func GetAvgFrequency4Nodes(nodeID int, maxs []maxPoint, skipFirstMaxima int, f, 
 		}
 	}
 
+	var sum float64
+	for _, s := range samples {
+		sum += s.freq
+	}
+
 	return inmemory.FreqAeroKoef{
 		Koef1: f,
 		Koef2: b,
-		Freq:  w / n,
+		Freq:  sum / float64(len(samples)),
 	}
 }
