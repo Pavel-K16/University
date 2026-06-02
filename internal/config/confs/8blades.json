@@ -65,58 +65,58 @@
       "to": 7
     },
     {
-      "d": 0.005,
+      "d": 0,
       "from": 0,
-      "k": 1.2,
+      "k": 1.5,
       "rest": 0,
       "to": 8
     },
     {
-      "d": 0.005,
+      "d": 0,
       "from": 1,
-      "k": 0.8,
+      "k": 0.5,
       "rest": 0,
       "to": 8
     },
     {
-      "d": 0.005,
+      "d": 0,
       "from": 2,
-      "k": 1.2,
+      "k": 1.5,
       "rest": 0,
       "to": 8
     },
     {
-      "d": 0.005,
+      "d": 0,
       "from": 3,
-      "k": 0.8,
+      "k": 0.5,
       "rest": 0,
       "to": 8
     },
     {
-      "d": 0.005,
+      "d": 0,
       "from": 4,
-      "k": 1.2,
+      "k": 1.5,
       "rest": 0,
       "to": 8
     },
     {
-      "d": 0.005,
+      "d": 0,
       "from": 5,
-      "k": 0.8,
+      "k": 0.5,
       "rest": 0,
       "to": 8
     },
     {
-      "d": 0.0005,
+      "d": 0,
       "from": 6,
-      "k": 1.2,
+      "k": 1.5,
       "rest": 0,
       "to": 8
     },
     {
-      "d": 0.0005,
+      "d": 0,
       "from": 7,
-      "k": 0.8,
+      "k": 0.5,
       "rest": 0,
       "to": 8
     }
@@ -127,57 +127,57 @@
       "fixed": false,
       "id": 0,
       "mass": 2,
-      "position": 1.1,
-      "velocity": 0.00249119
+      "position": 1,
+      "velocity": 0
     },
     {
       "fixed": false,
       "id": 1,
       "mass": 2,
       "position": -0.70710678,
-      "velocity": -0.50352932
+      "velocity": -0.53418661
     },
     {
       "fixed": false,
       "id": 2,
       "mass": 2,
       "position": -0,
-      "velocity": 0.7096068
+      "velocity": 0.75545395
     },
     {
       "fixed": false,
       "id": 3,
       "mass": 2,
       "position": 0.70710678,
-      "velocity": -0.50000624
+      "velocity": -0.53418661
     },
     {
       "fixed": false,
       "id": 4,
       "mass": 2,
       "position": -1,
-      "velocity": -0.00249119
+      "velocity": -0
     },
     {
       "fixed": false,
       "id": 5,
       "mass": 2,
       "position": 0.70710678,
-      "velocity": 0.50352932
+      "velocity": 0.53418661
     },
     {
       "fixed": false,
       "id": 6,
       "mass": 2,
       "position": 0,
-      "velocity": -0.7096068
+      "velocity": -0.75545395
     },
     {
       "fixed": false,
       "id": 7,
       "mass": 2,
       "position": -0.70710678,
-      "velocity": 0.50000624
+      "velocity": 0.53418661
     },
     {
       "fixed": true,
@@ -188,8 +188,8 @@
     }
   ],
   "times": {
-    "dt": 0.1,
-    "t": 10020,
+    "dt": 0.001,
+    "t": 100,
     "t0": 0
   }
 }

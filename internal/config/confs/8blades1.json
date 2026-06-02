@@ -1,0 +1,196 @@
+{
+    "aeroDynamicForce": {
+      "b": 1,
+      "enabled": true,
+      "rho": 1,
+      "scale": 2,
+      "v": 1
+    },
+    "edges": [
+      {
+        "d": 0,
+        "from": 0,
+        "k": 0,
+        "periodic": true,
+        "rest": 0,
+        "to": 7
+      },
+      {
+        "d": 0,
+        "from": 0,
+        "k": 0,
+        "rest": 0,
+        "to": 1
+      },
+      {
+        "d": 0,
+        "from": 1,
+        "k": 0,
+        "rest": 0,
+        "to": 2
+      },
+      {
+        "d": 0,
+        "from": 2,
+        "k": 0,
+        "rest": 0,
+        "to": 3
+      },
+      {
+        "d": 0,
+        "from": 3,
+        "k": 0,
+        "rest": 0,
+        "to": 4
+      },
+      {
+        "d": 0,
+        "from": 4,
+        "k": 0,
+        "rest": 0,
+        "to": 5
+      },
+      {
+        "d": 0,
+        "from": 5,
+        "k": 0,
+        "rest": 0,
+        "to": 6
+      },
+      {
+        "d": 0,
+        "from": 6,
+        "k": 0,
+        "rest": 0,
+        "to": 7
+      },
+  
+      {
+        "d": 0.04,
+        "from": 0,
+        "k": 1.15,
+        "rest": 0,
+        "to": 8
+      },
+      {
+        "d": 0.04,
+        "from": 1,
+        "k": 0.88,
+        "rest": 0,
+        "to": 8
+      },
+      {
+        "d": 0.04,
+        "from": 2,
+        "k": 1.12,
+        "rest": 0,
+        "to": 8
+      },
+      {
+        "d": 0.04,
+        "from": 3,
+        "k": 0.85,
+        "rest": 0,
+        "to": 8
+      },
+      {
+        "d": 0.04,
+        "from": 4,
+        "k": 1.05,
+        "rest": 0,
+        "to": 8
+      },
+      {
+        "d": 0.04,
+        "from": 5,
+        "k": 0.90,
+        "rest": 0,
+        "to": 8
+      },
+      {
+        "d": 0.04,
+        "from": 6,
+        "k": 1.10,
+        "rest": 0,
+        "to": 8
+      },
+      {
+        "d": 0.04,
+        "from": 7,
+        "k": 0.92,
+        "rest": 0,
+        "to": 8
+      }
+    ],
+    "lastFirstDist": 1,
+    "nodes": [
+      {
+        "fixed": false,
+        "id": 0,
+        "mass": 2,
+        "position": 1,
+        "velocity": 0.02498441
+      },
+      {
+        "fixed": false,
+        "id": 1,
+        "mass": 2,
+        "position": -0.70710678,
+        "velocity": -0.51797866
+      },
+      {
+        "fixed": false,
+        "id": 2,
+        "mass": 2,
+        "position": -0,
+        "velocity": 0.70754803
+      },
+      {
+        "fixed": false,
+        "id": 3,
+        "mass": 2,
+        "position": 0.70710678,
+        "velocity": -0.48264537
+      },
+      {
+        "fixed": false,
+        "id": 4,
+        "mass": 2,
+        "position": -1,
+        "velocity": -0.02498441
+      },
+      {
+        "fixed": false,
+        "id": 5,
+        "mass": 2,
+        "position": 0.70710678,
+        "velocity": 0.51797866
+      },
+      {
+        "fixed": false,
+        "id": 6,
+        "mass": 2,
+        "position": 0,
+        "velocity": -0.70754803
+      },
+      {
+        "fixed": false,
+        "id": 7,
+        "mass": 2,
+        "position": -0.70710678,
+        "velocity": 0.48264537
+      },
+      {
+        "fixed": true,
+        "id": 8,
+        "mass": 1000000000,
+        "position": 0,
+        "velocity": 0
+      }
+    ],
+    "times": {
+      "dt": 0.001,
+      "t": 500,
+      "t0": 0
+    }
+  }
