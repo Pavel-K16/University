@@ -116,8 +116,8 @@ func main() {
 		t0 := cnf.Times.T0
 		dt := cnf.Times.Dt
 
-		f := 0.2
-		b := -0.2
+		f := 0.05
+		b := -0.05
 		fl := 0.0
 		bl := 0.0
 

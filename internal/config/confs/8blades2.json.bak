@@ -67,56 +67,56 @@
     {
       "d": 0.04,
       "from": 0,
-      "k": 0.8,
+      "k": 1,
       "rest": 0,
       "to": 8
     },
     {
       "d": 0.04,
       "from": 1,
-      "k": 1.2,
+      "k": 1,
       "rest": 0,
       "to": 8
     },
     {
       "d": 0.04,
       "from": 2,
-      "k": 0.8,
+      "k": 1,
       "rest": 0,
       "to": 8
     },
     {
       "d": 0.04,
       "from": 3,
-      "k": 1.2,
+      "k": 1,
       "rest": 0,
       "to": 8
     },
     {
       "d": 0.04,
       "from": 4,
-      "k": 0.8,
+      "k": 1,
       "rest": 0,
       "to": 8
     },
     {
       "d": 0.04,
       "from": 5,
-      "k": 1.2,
+      "k": 1,
       "rest": 0,
       "to": 8
     },
     {
       "d": 0.04,
       "from": 6,
-      "k": 0.8,
+      "k": 1,
       "rest": 0,
       "to": 8
     },
     {
       "d": 0.04,
       "from": 7,
-      "k": 1.2,
+      "k": 1,
       "rest": 0,
       "to": 8
     }
@@ -128,56 +128,56 @@
       "id": 0,
       "mass": 2,
       "position": 1,
-      "velocity": 0.0349869
+      "velocity": -0.02498441
     },
     {
       "fixed": false,
       "id": 1,
       "mass": 2,
       "position": -0.70710678,
-      "velocity": -0.52500158
+      "velocity": 0.51797866
     },
     {
       "fixed": false,
       "id": 2,
       "mass": 2,
       "position": -0,
-      "velocity": 0.70747745
+      "velocity": -0.70754803
     },
     {
       "fixed": false,
       "id": 3,
       "mass": 2,
       "position": 0.70710678,
-      "velocity": -0.47552263
+      "velocity": 0.48264537
     },
     {
       "fixed": false,
       "id": 4,
       "mass": 2,
       "position": -1,
-      "velocity": -0.0349869
+      "velocity": 0.02498441
     },
     {
       "fixed": false,
       "id": 5,
       "mass": 2,
       "position": 0.70710678,
-      "velocity": 0.52500158
+      "velocity": -0.51797866
     },
     {
       "fixed": false,
       "id": 6,
       "mass": 2,
       "position": 0,
-      "velocity": -0.70747745
+      "velocity": 0.70754803
     },
     {
       "fixed": false,
       "id": 7,
       "mass": 2,
       "position": -0.70710678,
-      "velocity": 0.47552263
+      "velocity": -0.48264537
     },
     {
       "fixed": true,
