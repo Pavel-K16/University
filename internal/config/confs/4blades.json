@@ -72,28 +72,28 @@
       "id": 0,
       "mass": 1,
       "position": 1,
-      "velocity": 0.04993777
+      "velocity": -0.04987608
     },
     {
       "fixed": false,
       "id": 1,
       "mass": 1,
-      "position": 0,
-      "velocity": -1.00124611
+      "position": 0.70710678,
+      "velocity": 0.46597455
     },
     {
       "fixed": false,
       "id": 2,
       "mass": 1,
-      "position": -1,
-      "velocity": -0.04993777
+      "position": 0,
+      "velocity": 0.70886361
     },
     {
       "fixed": false,
       "id": 3,
       "mass": 1,
-      "position": -0,
-      "velocity": 1.00124611
+      "position": -0.70710678,
+      "velocity": 0.53650998
     },
     {
       "fixed": true,
@@ -104,8 +104,8 @@
     }
   ],
   "times": {
-    "dt": 0.0001,
-    "t": 50,
+    "dt": 0.01,
+    "t": 400,
     "t0": 0
   }
 }

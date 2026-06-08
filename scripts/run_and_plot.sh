@@ -26,25 +26,14 @@ fi
 # 1) Запускаем основной расчёт (run.sh читает CONFIG и PARALLEL из окружения)
 ./run.sh
 
-# 2) После завершения строим графики и HTML (plot_points.py тоже читает CONFIG и PARALLEL)
+# 2) Графики и HTML в plots/ (автомасштаб, сырые δ/Δφ)
 python3 ../plots/plot_points.py
 
-# 3) Копируем основные графики в doc/images/ (стиль для диплома)
+# 3) Экспорт в doc/images/ (фиксированные оси δ/Δφ для диплома)
 DOC_IMAGES_DIR="../doc/images"
-DOC_EXPORT_PLOTS=(
-    trajectories.png
-    amplitudes.png
-    sum_energy.png
-    decrement_deltas.png
-    interblade_phase.png
-)
 mkdir -p "$DOC_IMAGES_DIR"
-for img in "${DOC_EXPORT_PLOTS[@]}"; do
-    if [[ -f "../plots/$img" ]]; then
-        cp -f "../plots/$img" "$DOC_IMAGES_DIR/$img"
-    fi
-done
-echo "Экспорт в $DOC_IMAGES_DIR: ${DOC_EXPORT_PLOTS[*]}"
+PLOTS_OUTPUT_DIR="$DOC_IMAGES_DIR" THESIS_EXPORT=true python3 ../plots/plot_points.py
+echo "Экспорт в $DOC_IMAGES_DIR: trajectories, amplitudes, sum_energy, decrement_deltas, interblade_phase"
 
 # xdg-open ../plots/index.html
 end_ts=$(date +%s)

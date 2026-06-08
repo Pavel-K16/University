@@ -15,6 +15,7 @@ OUT_DIR="$ROOT_DIR/doc/images"
 export PARALLEL="${PARALLEL:-false}"
 export CONFIG="${CONFIG:-1blade}"
 export PLOTS_OUTPUT_DIR="$OUT_DIR"
+export THESIS_EXPORT=true
 
 EXPORT_ONLY=false
 

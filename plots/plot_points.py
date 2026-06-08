@@ -26,6 +26,7 @@
 
 Переменные окружения (опционально):
   PLOTS_OUTPUT_DIR — каталог для PNG/HTML (по умолчанию plots/; export: doc/images).
+  THESIS_EXPORT — true: фиксированные оси δ/Δφ для диплома; index.html не пишется.
   A0 — коэффициент A0 в аналитической формуле dA/dt (по умолчанию 1; например export A0=-1).
   ANALYTICAL_DT_SOURCE — peak (по умолчанию): Δt = среднее расстояние между пиками
     из amplitude_points*.txt; integrator — брать dt из конфига times.dt.
@@ -182,6 +183,16 @@ def resolve_plots_output_dir(script_dir: Path, root_dir: Path) -> Path:
         out = Path(custom)
         return out if out.is_absolute() else root_dir / out
     return script_dir
+
+
+def thesis_export_enabled(plots_dir: Path, root_dir: Path) -> bool:
+    """Экспорт в doc/images: фиксированные оси δ/Δφ; plots/ — автомасштаб для HTML."""
+    if env_bool("THESIS_EXPORT", default=False):
+        return True
+    try:
+        return plots_dir.resolve() == (root_dir / "doc" / "images").resolve()
+    except OSError:
+        return False
 
 
 def extend_series_to_time_window(
@@ -1272,7 +1283,9 @@ def generate_plots_and_html():
 
     plots_dir.mkdir(parents=True, exist_ok=True)
     movable_node_ids = get_movable_node_ids_from_config(root_dir)
-    thesis_plot_xlim, thesis_data_xlim, thesis_xticks = thesis_time_axis(root_dir)
+    thesis_export = thesis_export_enabled(plots_dir, root_dir)
+    if thesis_export:
+        thesis_plot_xlim, thesis_data_xlim, thesis_xticks = thesis_time_axis(root_dir)
 
     if PLOT_DARK_EXPORT:
         try:
@@ -1390,14 +1403,18 @@ def generate_plots_and_html():
                 color=colors[idx % len(colors)],
             )
         if phase_has_data:
-            finalize_html_series_plot(
-                ylabel="Δφ, °",
-                y_series=interblade_y,
-                xlim=thesis_plot_xlim,
-                ylim=THESIS_PHASE_YLIM,
-                xticks=thesis_xticks,
-                yticks=THESIS_PHASE_YTICKS,
-            )
+            phase_finalize: dict = {
+                "ylabel": "Δφ, °",
+                "y_series": interblade_y,
+            }
+            if thesis_export:
+                phase_finalize.update(
+                    xlim=thesis_plot_xlim,
+                    ylim=THESIS_PHASE_YLIM,
+                    xticks=thesis_xticks,
+                    yticks=THESIS_PHASE_YTICKS,
+                )
+            finalize_html_series_plot(**phase_finalize)
             plt.savefig(
                 plots_dir / phase_img_name,
                 dpi=200,
@@ -1426,23 +1443,26 @@ def generate_plots_and_html():
             t, d = load_two_column_txt(path)
             if t.size == 0:
                 continue
-            # Установившийся δ: медиана по файлу (устойчива к редким переходным точкам).
-            steady_delta = float(np.median(d))
-            t_line = np.array([thesis_data_xlim[0], thesis_data_xlim[1]], dtype=float)
-            d_line = np.array([steady_delta, steady_delta], dtype=float)
             dec_has_data = True
             label = blade_label_from_stem(path.stem, "decrement_points")
-            dec_y.append(d_line)
-            plt.plot(t_line, d_line, linestyle="-", label=label, color=colors[idx % len(colors)])
+            if thesis_export:
+                steady_delta = float(np.median(d))
+                t_plot = np.array([thesis_data_xlim[0], thesis_data_xlim[1]], dtype=float)
+                d_plot = np.array([steady_delta, steady_delta], dtype=float)
+            else:
+                t_plot, d_plot = t, d
+            dec_y.append(d_plot)
+            plt.plot(t_plot, d_plot, linestyle="-", label=label, color=colors[idx % len(colors)])
 
-        finalize_html_series_plot(
-            ylabel="δ",
-            y_series=dec_y,
-            xlim=thesis_plot_xlim,
-            ylim=THESIS_DECREMENT_YLIM,
-            xticks=thesis_xticks,
-            yticks=THESIS_DECREMENT_YTICKS,
-        )
+        dec_finalize: dict = {"ylabel": "δ", "y_series": dec_y}
+        if thesis_export:
+            dec_finalize.update(
+                xlim=thesis_plot_xlim,
+                ylim=THESIS_DECREMENT_YLIM,
+                xticks=thesis_xticks,
+                yticks=THESIS_DECREMENT_YTICKS,
+            )
+        finalize_html_series_plot(**dec_finalize)
         out_dec = plots_dir / dec_img_name
         plt.savefig(out_dec, dpi=200, bbox_inches="tight", pad_inches=0.06)
         plt.close()
@@ -1785,7 +1805,10 @@ def generate_plots_and_html():
         else:
             print(f"Файлы d_amplitude_points*.txt не найдены в {data_dir}")
 
-    # ---------- Генерация HTML ----------
+    # ---------- Генерация HTML (только plots/, не экспорт в doc/images) ----------
+    if thesis_export:
+        return
+
     html_path = plots_dir / "index.html"
     logs_path = data_dir / "decrement_details.log"
     logs_text = ""
