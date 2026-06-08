@@ -29,6 +29,23 @@ fi
 # 2) После завершения строим графики и HTML (plot_points.py тоже читает CONFIG и PARALLEL)
 python3 ../plots/plot_points.py
 
+# 3) Копируем основные графики в doc/images/ (стиль для диплома)
+DOC_IMAGES_DIR="../doc/images"
+DOC_EXPORT_PLOTS=(
+    trajectories.png
+    amplitudes.png
+    sum_energy.png
+    decrement_deltas.png
+    interblade_phase.png
+)
+mkdir -p "$DOC_IMAGES_DIR"
+for img in "${DOC_EXPORT_PLOTS[@]}"; do
+    if [[ -f "../plots/$img" ]]; then
+        cp -f "../plots/$img" "$DOC_IMAGES_DIR/$img"
+    fi
+done
+echo "Экспорт в $DOC_IMAGES_DIR: ${DOC_EXPORT_PLOTS[*]}"
+
 # xdg-open ../plots/index.html
 end_ts=$(date +%s)
 

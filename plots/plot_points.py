@@ -25,6 +25,7 @@
   plots/frequency_map_node*.png, plots/frequency_map_node*_interactive.html — только при PARALLEL=true
 
 Переменные окружения (опционально):
+  PLOTS_OUTPUT_DIR — каталог для PNG/HTML (по умолчанию plots/; export: doc/images).
   A0 — коэффициент A0 в аналитической формуле dA/dt (по умолчанию 1; например export A0=-1).
   ANALYTICAL_DT_SOURCE — peak (по умолчанию): Δt = среднее расстояние между пиками
     из amplitude_points*.txt; integrator — брать dt из конфига times.dt.
@@ -161,6 +162,116 @@ def auto_plot_ylim(
     span = hi - lo
     pad = max(min_pad, span * pad_frac)
     return lo - pad, hi + pad
+
+
+HTML_SERIES_FIGSIZE = (10, 6)
+HTML_LEGEND_RIGHT = 0.76
+
+# Масштабы осей Y как на рисунках КПА (Рис. 14: δ(t) и межлопаточная Δφ).
+# Ось X: данные [0, times.t]; на графике слева небольшой отступ (как у траекторий).
+THESIS_TIME_LEFT_MARGIN = 2.0
+THESIS_DECREMENT_YLIM = (-2.0, 1.0)
+THESIS_DECREMENT_YTICKS = [-2.0, -1.5, -1.0, -0.5, 0.0, 0.5]
+THESIS_PHASE_YLIM = (0.0, 200.0)
+THESIS_PHASE_YTICKS = [25, 50, 75, 100, 125, 150, 175]
+
+
+def resolve_plots_output_dir(script_dir: Path, root_dir: Path) -> Path:
+    custom = os.environ.get("PLOTS_OUTPUT_DIR", "").strip()
+    if custom:
+        out = Path(custom)
+        return out if out.is_absolute() else root_dir / out
+    return script_dir
+
+
+def extend_series_to_time_window(
+    t: np.ndarray,
+    y: np.ndarray,
+    t_min: float,
+    t_max: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Дополняет ряд до [t_min, t_max] удержанием крайних значений (ZOH)."""
+    if t.size == 0:
+        return t, y
+    t_out = t.copy()
+    y_out = y.copy()
+    if t_out[0] > t_min + 1e-12:
+        t_out = np.concatenate(([t_min], t_out))
+        y_out = np.concatenate(([y_out[0]], y_out))
+    if t_out[-1] < t_max - 1e-12:
+        t_out = np.concatenate((t_out, [t_max]))
+        y_out = np.concatenate((y_out, [y_out[-1]]))
+    return t_out, y_out
+
+
+def blade_label_from_stem(stem: str, prefix: str) -> str:
+    m = re.match(rf"^{re.escape(prefix)}(\d+)$", stem)
+    if m:
+        return f"лопатка {m.group(1)}"
+    return stem
+
+
+def finalize_html_series_plot(
+    *,
+    ylabel: str,
+    y_series: list[np.ndarray] | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
+    xticks: list[float] | None = None,
+    yticks: list[float] | None = None,
+) -> None:
+    """Оформление временных рядов: без заголовка, подпись Y горизонтально у верхней оси."""
+    ax = plt.gca()
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    ax.grid(True, alpha=0.3)
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+    elif y_series:
+        auto_ylim = auto_plot_ylim(y_series)
+        if auto_ylim is not None:
+            ax.set_ylim(*auto_ylim)
+    if xticks is not None:
+        ax.set_xticks(xticks)
+    if yticks is not None:
+        ax.set_yticks(yticks)
+    ymin = ax.get_ylim()[0]
+    xmax = ax.get_xlim()[1]
+    ax.text(
+        0.0,
+        1.02,
+        ylabel,
+        transform=ax.transAxes,
+        ha="left",
+        va="bottom",
+        fontsize=12,
+        clip_on=False,
+    )
+    ax.annotate(
+        "t",
+        xy=(xmax, ymin),
+        xycoords="data",
+        xytext=(8, 0),
+        textcoords="offset points",
+        ha="left",
+        va="center",
+        fontsize=12,
+        clip_on=False,
+    )
+    ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        frameon=True,
+        borderaxespad=0.0,
+        fontsize=10,
+    )
+    plt.gcf().subplots_adjust(left=0.08, right=HTML_LEGEND_RIGHT, top=0.96)
+    try:
+        plt.tight_layout(rect=(0.0, 0.0, HTML_LEGEND_RIGHT, 1.0))
+    except Exception as ex:
+        print(f"Предупреждение: tight_layout пропущен ({type(ex).__name__}: {ex})")
 
 
 def load_two_column_txt(path: Path):
@@ -1063,6 +1174,45 @@ def mean_peak_spacing_from_amplitude_file(path: Path) -> float | None:
     return float(np.mean(positive))
 
 
+def get_simulation_t_from_config(root_dir: Path) -> float | None:
+    config_name = os.environ.get("CONFIG", "conf")
+    config_path = root_dir / "internal" / "config" / "confs" / f"{config_name}.json"
+    if not config_path.exists():
+        return None
+    try:
+        with config_path.open("r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception:
+        return None
+    times = cfg.get("times") or {}
+    t_end = times.get("t")
+    if t_end is None:
+        return None
+    try:
+        v = float(t_end)
+    except (TypeError, ValueError):
+        return None
+    return v if v > 0 else None
+
+
+def thesis_time_axis(
+    root_dir: Path,
+) -> tuple[tuple[float, float], tuple[float, float], list[float]]:
+    """Ось времени: данные [0, times.t], на графике — с отступом слева; деления через 10 с."""
+    t_end = get_simulation_t_from_config(root_dir)
+    if t_end is None or t_end <= 0:
+        t_end = 50.0
+    t_end = float(t_end)
+    data_xlim = (0.0, t_end)
+    left_margin = min(THESIS_TIME_LEFT_MARGIN, t_end * 0.08)
+    plot_xlim = (-left_margin, t_end)
+    step = 10.0
+    ticks = [float(x) for x in np.arange(0.0, t_end + step * 0.1, step)]
+    if not ticks or abs(ticks[-1] - t_end) > 1e-9:
+        ticks.append(t_end)
+    return plot_xlim, data_xlim, ticks
+
+
 def get_integration_dt_from_config(root_dir: Path) -> float | None:
     config_name = os.environ.get("CONFIG", "conf")
     config_path = root_dir / "internal" / "config" / "confs" / f"{config_name}.json"
@@ -1112,14 +1262,17 @@ def analytical_d_amplitude_dt(t: np.ndarray, delta_bar: float, dt_char: float, a
 def generate_plots_and_html():
     _dbg("H0", "generate_plots_and_html enter", {"PARALLEL": PARALLEL_ONLY_DECREMENT_MAPS, "mpl_backend": str(matplotlib.get_backend())})
     # Текущий файл: <root>/plots/plot_points.py
-    plots_dir = Path(__file__).resolve().parent
-    root_dir = plots_dir.parent
+    script_dir = Path(__file__).resolve().parent
+    root_dir = script_dir.parent
+    plots_dir = resolve_plots_output_dir(script_dir, root_dir)
 
     data_dir = root_dir / "wolfram" / "paramsAndPoints"
     if not data_dir.exists():
         raise FileNotFoundError(f"Директория с данными не найдена: {data_dir}")
 
     plots_dir.mkdir(parents=True, exist_ok=True)
+    movable_node_ids = get_movable_node_ids_from_config(root_dir)
+    thesis_plot_xlim, thesis_data_xlim, thesis_xticks = thesis_time_axis(root_dir)
 
     if PLOT_DARK_EXPORT:
         try:
@@ -1128,19 +1281,17 @@ def generate_plots_and_html():
             plt.style.use("ggplot")
 
     # ---------- Траектории graph_points*.txt ----------
-    node_ids = get_node_ids_from_config(root_dir)
+    traj_node_ids = movable_node_ids or get_node_ids_from_config(root_dir)
 
-    if node_ids:
-        # Берём только файлы для узлов из конфига
+    if traj_node_ids:
         graph_files = []
-        for node_id in node_ids:
+        for node_id in traj_node_ids:
             path = data_dir / f"graph_points{node_id}.txt"
             if path.exists():
                 graph_files.append(path)
             else:
                 print(f"Файл для узла {node_id} не найден: {path}")
     else:
-        # Фолбэк: все файлы
         graph_files = sorted(data_dir.glob("graph_points*.txt"))
 
     traj_img_name = "trajectories.png"
@@ -1165,33 +1316,26 @@ def generate_plots_and_html():
     phase_stats_rows: list[tuple[str, float, float]] = []
 
     if (not PARALLEL_ONLY_DECREMENT_MAPS) and graph_files:
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=HTML_SERIES_FIGSIZE)
         colors = plt.cm.tab10.colors
+        traj_y: list[np.ndarray] = []
 
         for idx, path in enumerate(graph_files):
             t, x = load_two_column_txt(path)
             if t.size == 0:
                 continue
-            label = path.stem  # например, 'graph_points0'
+            label = blade_label_from_stem(path.stem, "graph_points")
+            traj_y.append(x)
             plt.plot(t, x, label=label, color=colors[idx % len(colors)])
 
-        plt.xlabel("t")
-        plt.ylabel("position")
-        plt.title("Trajectories from graph_points*.txt")
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        safe_tight_layout()
-
+        finalize_html_series_plot(ylabel="x", y_series=traj_y)
         out_traj = plots_dir / traj_img_name
-        plt.savefig(out_traj, dpi=200)
+        plt.savefig(out_traj, dpi=200, bbox_inches="tight", pad_inches=0.06)
         plt.close()
     elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файлы graph_points*.txt не найдены в {data_dir}")
 
     # ---------- Амплитуды amplitude_points*.txt ----------
-    # Берём именно готовые файлы амплитуд и просто отображаем точки с них.
-    # Количество/набор узлов — из активного конфига (как для траекторий).
-    movable_node_ids = get_movable_node_ids_from_config(root_dir)
     amp_files = []
     if movable_node_ids:
         for node_id in movable_node_ids:
@@ -1202,32 +1346,28 @@ def generate_plots_and_html():
         amp_files = sorted(data_dir.glob("amplitude_points*.txt"))
 
     if (not PARALLEL_ONLY_DECREMENT_MAPS) and amp_files:
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=HTML_SERIES_FIGSIZE)
         colors = plt.cm.tab10.colors
+        amp_y: list[np.ndarray] = []
 
         for idx, path in enumerate(amp_files):
             t, a = load_two_column_txt(path)
             if t.size == 0:
                 continue
-            label = path.stem  # например, 'amplitude_points0'
-            plt.plot(t, a, marker="o", linestyle="-", label=label, color=colors[idx % len(colors)])
+            label = blade_label_from_stem(path.stem, "amplitude_points")
+            amp_y.append(a)
+            plt.plot(t, a, linestyle="-", label=label, color=colors[idx % len(colors)])
 
-        plt.xlabel("t")
-        plt.ylabel("|x - x_eq|")
-        plt.title("Amplitudes from amplitude_points*.txt")
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        safe_tight_layout()
-
+        finalize_html_series_plot(ylabel="A", y_series=amp_y)
         out_amp = plots_dir / amp_img_name
-        plt.savefig(out_amp, dpi=200)
+        plt.savefig(out_amp, dpi=200, bbox_inches="tight", pad_inches=0.06)
         plt.close()
     elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файлы amplitude_points*.txt не найдены в {data_dir}")
 
     # ---------- Межлопаточная фаза Δφ(t) из interblade_phase_points*.txt (Go, single run) ----------
     if (not PARALLEL_ONLY_DECREMENT_MAPS) and movable_node_ids:
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=HTML_SERIES_FIGSIZE)
         colors = plt.cm.tab10.colors
         interblade_y: list[np.ndarray] = []
         for idx, node_id in enumerate(movable_node_ids):
@@ -1250,46 +1390,20 @@ def generate_plots_and_html():
                 color=colors[idx % len(colors)],
             )
         if phase_has_data:
-            plt.xlabel("t")
-            plt.ylabel("Δφ, °")
-            plt.title("Межлопаточная разность фаз (развёрнутая)")
-            ylim = auto_plot_ylim(interblade_y)
-            if ylim is not None:
-                plt.ylim(*ylim)
-            plt.grid(True, alpha=0.3)
-            plt.legend()
-            safe_tight_layout()
-            plt.savefig(plots_dir / phase_img_name, dpi=200)
-        plt.close()
-
-        plt.figure(figsize=(10, 6))
-        blade_y: list[np.ndarray] = []
-        for idx, node_id in enumerate(movable_node_ids):
-            path = data_dir / f"blade_phase_points{node_id}.txt"
-            if not path.exists():
-                continue
-            t_ph, ph = load_two_column_txt(path)
-            if t_ph.size == 0:
-                continue
-            blade_phase_has_data = True
-            blade_y.append(ph)
-            plt.plot(
-                t_ph,
-                ph,
-                label=f"φ({node_id})",
-                color=colors[idx % len(colors)],
+            finalize_html_series_plot(
+                ylabel="Δφ, °",
+                y_series=interblade_y,
+                xlim=thesis_plot_xlim,
+                ylim=THESIS_PHASE_YLIM,
+                xticks=thesis_xticks,
+                yticks=THESIS_PHASE_YTICKS,
             )
-        if blade_phase_has_data:
-            plt.xlabel("t")
-            plt.ylabel("φ, °")
-            plt.title("Фаза колебаний лопаток")
-            ylim = auto_plot_ylim(blade_y)
-            if ylim is not None:
-                plt.ylim(*ylim)
-            plt.grid(True, alpha=0.3)
-            plt.legend()
-            safe_tight_layout()
-            plt.savefig(plots_dir / blade_phase_img_name, dpi=200)
+            plt.savefig(
+                plots_dir / phase_img_name,
+                dpi=200,
+                bbox_inches="tight",
+                pad_inches=0.08,
+            )
         plt.close()
 
     # ---------- Декремент затухания по периодам decrement_points*.txt ----------
@@ -1304,26 +1418,33 @@ def generate_plots_and_html():
 
     dec_has_data = False
     if (not PARALLEL_ONLY_DECREMENT_MAPS) and dec_files:
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=HTML_SERIES_FIGSIZE)
         colors = plt.cm.tab10.colors
+        dec_y: list[np.ndarray] = []
 
         for idx, path in enumerate(dec_files):
             t, d = load_two_column_txt(path)
             if t.size == 0:
                 continue
+            # Установившийся δ: медиана по файлу (устойчива к редким переходным точкам).
+            steady_delta = float(np.median(d))
+            t_line = np.array([thesis_data_xlim[0], thesis_data_xlim[1]], dtype=float)
+            d_line = np.array([steady_delta, steady_delta], dtype=float)
             dec_has_data = True
-            label = path.stem  # например, 'decrement_points0'
-            plt.plot(t, d, marker="o", linestyle="-", label=label, color=colors[idx % len(colors)])
+            label = blade_label_from_stem(path.stem, "decrement_points")
+            dec_y.append(d_line)
+            plt.plot(t_line, d_line, linestyle="-", label=label, color=colors[idx % len(colors)])
 
-        plt.xlabel("t")
-        plt.ylabel("delta_n")
-        plt.title("Logarithmic decrement per oscillation period")
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        safe_tight_layout()
-
+        finalize_html_series_plot(
+            ylabel="δ",
+            y_series=dec_y,
+            xlim=thesis_plot_xlim,
+            ylim=THESIS_DECREMENT_YLIM,
+            xticks=thesis_xticks,
+            yticks=THESIS_DECREMENT_YTICKS,
+        )
         out_dec = plots_dir / dec_img_name
-        plt.savefig(out_dec, dpi=200)
+        plt.savefig(out_dec, dpi=200, bbox_inches="tight", pad_inches=0.06)
         plt.close()
     elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файлы decrement_points*.txt не найдены в {data_dir}")
@@ -1456,16 +1577,11 @@ def generate_plots_and_html():
         tE, E = load_two_column_txt(energy_path)
 
         plt.figure(figsize=(10, 4))
-        plt.plot(tE, E, label="Total energy")
-        plt.xlabel("t")
-        plt.ylabel("E(t)")
-        plt.title("Sum of kinetic + potential energy")
-        plt.grid(True, alpha=0.3)
-        plt.legend()
-        safe_tight_layout()
+        plt.plot(tE, E, label="E")
+        finalize_html_series_plot(ylabel="E", y_series=[E])
 
         out_energy = plots_dir / energy_img_name
-        plt.savefig(out_energy, dpi=200)
+        plt.savefig(out_energy, dpi=200, bbox_inches="tight", pad_inches=0.06)
         plt.close()
     elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файл с энергией не найден: {energy_path}")
@@ -1910,10 +2026,8 @@ def generate_plots_and_html():
   <div class="block">
     <h2>Траектории узлов (graph_points*.txt)</h2>
     {"<p>Файлы не найдены.</p>" if not graph_files else f'<img src="{traj_img_name}" alt="Trajectories">'}
-    <h2>Межлопаточная фаза Δφ(t), °</h2>
+    <h2>Межлопаточная разность фаз Δφ(t), °</h2>
     {"<p>Нет graph_points* или подвижных узлов в конфиге.</p>" if not phase_has_data else phase_table_html + f'<img src="{phase_img_name}" alt="Inter-blade phase">'}
-    <h2>Фаза колебаний φ(t) по лопаткам, °</h2>
-    {"<p>Нет graph_points* или подвижных узлов в конфиге.</p>" if not blade_phase_has_data else f'<img src="{blade_phase_img_name}" alt="Blade phase">'}
   </div>
 
   <div class="block">

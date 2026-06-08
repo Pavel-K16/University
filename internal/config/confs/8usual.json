@@ -128,56 +128,56 @@
       "id": 0,
       "mass": 2,
       "position": 1,
-      "velocity": -0.02414724
+      "velocity": -0.09903343
     },
     {
       "fixed": false,
       "id": 1,
       "mass": 2,
       "position": -0.70710678,
-      "velocity": 0.53473211
+      "velocity": 0.57490721
     },
     {
       "fixed": false,
       "id": 2,
       "mass": 2,
       "position": -0,
-      "velocity": -0.73207816
+      "velocity": -0.71400814
     },
     {
       "fixed": false,
       "id": 3,
       "mass": 2,
       "position": 0.70710678,
-      "velocity": 0.50058275
+      "velocity": 0.43485278
     },
     {
       "fixed": false,
       "id": 4,
       "mass": 2,
       "position": -1,
-      "velocity": 0.02414724
+      "velocity": 0.09903343
     },
     {
       "fixed": false,
       "id": 5,
       "mass": 2,
       "position": 0.70710678,
-      "velocity": -0.53473211
+      "velocity": -0.57490721
     },
     {
       "fixed": false,
       "id": 6,
       "mass": 2,
       "position": 0,
-      "velocity": 0.73207816
+      "velocity": 0.71400814
     },
     {
       "fixed": false,
       "id": 7,
       "mass": 2,
       "position": -0.70710678,
-      "velocity": -0.50058275
+      "velocity": -0.43485278
     },
     {
       "fixed": true,
@@ -188,8 +188,8 @@
     }
   ],
   "times": {
-    "dt": 0.001,
-    "t": 820,
+    "dt": 0.01,
+    "t": 200,
     "t0": 0
   }
 }

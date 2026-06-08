@@ -116,8 +116,10 @@ func main() {
 		t0 := cnf.Times.T0
 		dt := cnf.Times.Dt
 
-		f := 0.05
-		b := -0.05
+		f := 0.2
+		b := -0.2
+		fl := 0.0
+		bl := 0.0
 
 		pointsStore := inmemory.NewPointsStore()
 		amplitudeStore := inmemory.NewAmplitudeStore()
@@ -125,7 +127,7 @@ func main() {
 
 		graph := g.NewGraph()
 
-		solveWithGraph(cnf, graph, t0, T, dt, pointsStore, amplitudeStore, decrementStore, energyStore, f, b, skipFirst)
+		solveWithGraph(cnf, graph, t0, T, dt, pointsStore, amplitudeStore, decrementStore, energyStore, f, b, fl, bl, skipFirst)
 
 		if err := energyStore.WriteEnergyStoreToFiles(graph.NodesNumbers()); err != nil {
 			log.Errorf("Error writing energy store to files: %v", err)
@@ -145,7 +147,7 @@ func main() {
 	log.Infof("Time taken: %v", time.Since(start))
 }
 
-func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, amplitudeStore *inmemory.AmplitudeStore, decrementStore *inmemory.DecrementStore, energyStore *inmemory.EnergyStore, f, b float64, skipFirst int) {
+func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, pointsStore *inmemory.PointsStore, amplitudeStore *inmemory.AmplitudeStore, decrementStore *inmemory.DecrementStore, energyStore *inmemory.EnergyStore, f, b, fl, bl float64, skipFirst int) {
 	fmt.Println("\n=== Решение задачи о метрономах через графовую систему ===")
 	fmt.Printf("Начальные условия: t=0\n")
 	fmt.Printf("Диапазон расчёта: t=[%.2f, %.2f], dt=%.4f\n", t0, T, dt)
@@ -161,6 +163,8 @@ func solveWithGraph(cnf *config.Graph, graph *g.Graph, t0, T, dt float64, points
 
 	graph.BackAeroKoef = b
 	graph.ForwardAeroKoef = f
+	graph.ForwardLAeroKoef = fl
+	graph.BackLAeroKoef = bl
 
 	solver := equationsolver.NewGraphSolver(graph, dt)
 

@@ -26,13 +26,15 @@ type ExtremaPoint struct {
 }
 
 type Graph struct {
-	NodesNum        int
-	Period          float64
-	FirstNodeID     int
-	LastNodeID      int
-	Nodes           []*config.Node
-	BackAeroKoef    float64
-	ForwardAeroKoef float64
+	NodesNum         int
+	Period           float64
+	FirstNodeID      int
+	LastNodeID       int
+	Nodes            []*config.Node
+	BackAeroKoef     float64
+	ForwardAeroKoef  float64
+	ForwardLAeroKoef float64
+	BackLAeroKoef    float64
 }
 
 func NewGraph() *Graph {
@@ -301,27 +303,33 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 			continue
 		}
 
-		var aeroKoef float64
+		var aeroKoef, dempAeroKoef float64
 
 		if edge.Periodic {
 			switch nodeID {
 			case g.FirstNodeID:
 				aeroKoef = g.BackAeroKoef
+				dempAeroKoef = g.BackLAeroKoef
 			case g.LastNodeID:
 				aeroKoef = g.ForwardAeroKoef
+				dempAeroKoef = g.ForwardLAeroKoef
 			default:
 				if nodeID > edge.TargetID {
 					aeroKoef = g.BackAeroKoef
+					dempAeroKoef = g.BackLAeroKoef
 				} else {
 					aeroKoef = g.ForwardAeroKoef
+					dempAeroKoef = g.ForwardLAeroKoef
 				}
 			}
 		} else {
 			// Обычное правило: если nodeID > targetID, то -1, иначе +1
 			if nodeID > edge.TargetID {
 				aeroKoef = g.BackAeroKoef
+				dempAeroKoef = g.BackLAeroKoef
 			} else {
 				aeroKoef = g.ForwardAeroKoef
+				dempAeroKoef = g.ForwardLAeroKoef
 			}
 		}
 
@@ -341,19 +349,14 @@ func GetAeroForce(g *Graph, nodeID int) float64 {
 				eq = g.equilibriumPosition(edge.TargetID)
 			}
 			delta := pos - eq
-			aeroDinamicForce += aeroKoef * delta //+ aeroKoef*targetNode.Velocity
+			aeroDinamicForce += aeroKoef*delta + dempAeroKoef*targetNode.Velocity
 		} else {
 			pos := targetNode.Position
 			eq := g.equilibriumPosition(edge.TargetID)
 			delta := pos - eq
-			aeroDinamicForce += aeroKoef * delta //+ aeroKoef*targetNode.Velocity
+			aeroDinamicForce += aeroKoef*delta + dempAeroKoef*targetNode.Velocity
 		}
 	}
-
-	// eqSelf := g.equilibriumPosition(nodeID)
-	// deltaSelf := node.Position - eqSelf
-	// selfKoef := 0.5 * (g.ForwardAeroKoef + g.BackAeroKoef)
-	// aeroDinamicForce += selfKoef * deltaSelf
 
 	v := aero.GetFlowVelocity()
 	rho := aero.GetFlowDensity()

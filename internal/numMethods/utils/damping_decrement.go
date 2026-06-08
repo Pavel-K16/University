@@ -84,6 +84,7 @@ func writeDecrementPoints(nodeID int, maxs []maxPoint, skipFirstMaxima int) erro
 
 	start := clampSkipFirstMaxima(skipFirstMaxima, len(maxs))
 
+	wroteZero := false
 	for i := start; i < len(maxs)-2; i++ {
 		a1 := maxs[i].a
 		a2 := maxs[i+2].a
@@ -91,6 +92,10 @@ func writeDecrementPoints(nodeID int, maxs []maxPoint, skipFirstMaxima int) erro
 			continue
 		}
 		delta := math.Log(a1 / a2)
+		if !wroteZero {
+			fmt.Fprintf(f, "0.0000000000 %.10f\n", delta)
+			wroteZero = true
+		}
 		// Время привязываем к пику через один период (t_{n+2})
 		fmt.Fprintf(f, "%.10f %.10f\n", maxs[i+2].t, delta)
 	}
