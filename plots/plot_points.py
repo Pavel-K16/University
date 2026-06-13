@@ -88,6 +88,9 @@ PARALLEL_ONLY_DECREMENT_MAPS = env_bool("PARALLEL", default=False)
 # При генерации PNG: тёмный фон и светлые оси (export PLOT_DARK=true).
 PLOT_DARK_EXPORT = env_bool("PLOT_DARK", default=False)
 
+# PREZ_EXPORT_ONLY=true (scripts/export_trajectory_images.sh --prez): только trajectories, decrement, interblade_phase.
+PREZ_EXPORT_ONLY = env_bool("PREZ_EXPORT_ONLY", default=False)
+
 
 # Верхняя граница по модулю для столбцов из txt: отсекаем огромные конечные числа, из‑за которых
 # matplotlib ломается на tight_layout (tick locator / arange).
@@ -168,6 +171,15 @@ def auto_plot_ylim(
 HTML_SERIES_FIGSIZE = (10, 6)
 HTML_LEGEND_RIGHT = 0.76
 
+# Шрифты: plots/index.html (компактнее) vs doc/images (крупнее для презентации).
+HTML_AXIS_LABEL_FONTSIZE = 12
+HTML_TICK_LABEL_FONTSIZE = 10
+HTML_LEGEND_FONTSIZE = 10
+
+THESIS_AXIS_LABEL_FONTSIZE = 17
+THESIS_TICK_LABEL_FONTSIZE = 14
+THESIS_LEGEND_FONTSIZE = 12
+
 # Масштабы осей Y как на рисунках КПА (Рис. 14: δ(t) и межлопаточная Δφ).
 # Ось X: данные [0, times.t]; на графике слева небольшой отступ (как у траекторий).
 THESIS_TIME_LEFT_MARGIN = 2.0
@@ -230,12 +242,18 @@ def finalize_html_series_plot(
     ylim: tuple[float, float] | None = None,
     xticks: list[float] | None = None,
     yticks: list[float] | None = None,
+    thesis_export: bool = False,
 ) -> None:
     """Оформление временных рядов: без заголовка, подпись Y горизонтально у верхней оси."""
+    label_fs = THESIS_AXIS_LABEL_FONTSIZE if thesis_export else HTML_AXIS_LABEL_FONTSIZE
+    tick_fs = THESIS_TICK_LABEL_FONTSIZE if thesis_export else HTML_TICK_LABEL_FONTSIZE
+    legend_fs = THESIS_LEGEND_FONTSIZE if thesis_export else HTML_LEGEND_FONTSIZE
+
     ax = plt.gca()
     ax.set_xlabel("")
     ax.set_ylabel("")
     ax.grid(True, alpha=0.3)
+    ax.tick_params(axis="both", labelsize=tick_fs)
     if xlim is not None:
         ax.set_xlim(*xlim)
     if ylim is not None:
@@ -257,7 +275,7 @@ def finalize_html_series_plot(
         transform=ax.transAxes,
         ha="left",
         va="bottom",
-        fontsize=12,
+        fontsize=label_fs,
         clip_on=False,
     )
     ax.annotate(
@@ -268,7 +286,7 @@ def finalize_html_series_plot(
         textcoords="offset points",
         ha="left",
         va="center",
-        fontsize=12,
+        fontsize=label_fs,
         clip_on=False,
     )
     ax.legend(
@@ -276,7 +294,7 @@ def finalize_html_series_plot(
         bbox_to_anchor=(1.02, 1.0),
         frameon=True,
         borderaxespad=0.0,
-        fontsize=10,
+        fontsize=legend_fs,
     )
     plt.gcf().subplots_adjust(left=0.08, right=HTML_LEGEND_RIGHT, top=0.96)
     try:
@@ -1166,6 +1184,21 @@ def parse_mean_delta_by_node_from_log(text: str) -> dict[int, float]:
     return out
 
 
+def env_optional(name: str) -> str | None:
+    raw = os.environ.get(name, "").strip()
+    return raw if raw else None
+
+
+def env_float_optional(name: str) -> float | None:
+    raw = env_optional(name)
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        return None
+
+
 def mean_delta_from_decrement_points_file(path: Path) -> float | None:
     _, d = load_two_column_txt(path)
     if d.size == 0:
@@ -1341,7 +1374,7 @@ def generate_plots_and_html():
             traj_y.append(x)
             plt.plot(t, x, label=label, color=colors[idx % len(colors)])
 
-        finalize_html_series_plot(ylabel="x", y_series=traj_y)
+        finalize_html_series_plot(ylabel="x", y_series=traj_y, thesis_export=thesis_export)
         out_traj = plots_dir / traj_img_name
         plt.savefig(out_traj, dpi=200, bbox_inches="tight", pad_inches=0.06)
         plt.close()
@@ -1358,7 +1391,7 @@ def generate_plots_and_html():
     else:
         amp_files = sorted(data_dir.glob("amplitude_points*.txt"))
 
-    if (not PARALLEL_ONLY_DECREMENT_MAPS) and amp_files:
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and (not PREZ_EXPORT_ONLY) and amp_files:
         plt.figure(figsize=HTML_SERIES_FIGSIZE)
         colors = plt.cm.tab10.colors
         amp_y: list[np.ndarray] = []
@@ -1371,11 +1404,11 @@ def generate_plots_and_html():
             amp_y.append(a)
             plt.plot(t, a, linestyle="-", label=label, color=colors[idx % len(colors)])
 
-        finalize_html_series_plot(ylabel="A", y_series=amp_y)
+        finalize_html_series_plot(ylabel="A", y_series=amp_y, thesis_export=thesis_export)
         out_amp = plots_dir / amp_img_name
         plt.savefig(out_amp, dpi=200, bbox_inches="tight", pad_inches=0.06)
         plt.close()
-    elif not PARALLEL_ONLY_DECREMENT_MAPS:
+    elif not PARALLEL_ONLY_DECREMENT_MAPS and not PREZ_EXPORT_ONLY:
         print(f"Файлы amplitude_points*.txt не найдены в {data_dir}")
 
     # ---------- Межлопаточная фаза Δφ(t) из interblade_phase_points*.txt (Go, single run) ----------
@@ -1406,6 +1439,7 @@ def generate_plots_and_html():
             phase_finalize: dict = {
                 "ylabel": "Δφ, °",
                 "y_series": interblade_y,
+                "thesis_export": thesis_export,
             }
             if thesis_export:
                 phase_finalize.update(
@@ -1415,6 +1449,33 @@ def generate_plots_and_html():
                     yticks=THESIS_PHASE_YTICKS,
                 )
             finalize_html_series_plot(**phase_finalize)
+
+            phase_annot_str = env_optional("INTERBLADE_PHASE_ANNOT_VALUE")
+            phase_annot = env_float_optional("INTERBLADE_PHASE_ANNOT_VALUE")
+            if phase_annot is not None and phase_annot_str is not None:
+                ax = plt.gca()
+                ax.axhline(
+                    phase_annot,
+                    color="0.45",
+                    linestyle="--",
+                    linewidth=1.2,
+                    alpha=0.85,
+                    zorder=1,
+                )
+                ann_fs = THESIS_TICK_LABEL_FONTSIZE if thesis_export else HTML_TICK_LABEL_FONTSIZE
+                x_left, x_right = ax.get_xlim()
+                x_text = x_right - 0.03 * (x_right - x_left)
+                ax.text(
+                    x_text,
+                    phase_annot,
+                    rf"$\Delta\varphi = {phase_annot_str}°$",
+                    fontsize=ann_fs,
+                    va="bottom",
+                    ha="right",
+                    color="0.25",
+                    clip_on=True,
+                )
+
             plt.savefig(
                 plots_dir / phase_img_name,
                 dpi=200,
@@ -1445,24 +1506,58 @@ def generate_plots_and_html():
                 continue
             dec_has_data = True
             label = blade_label_from_stem(path.stem, "decrement_points")
-            if thesis_export:
-                steady_delta = float(np.median(d))
-                t_plot = np.array([thesis_data_xlim[0], thesis_data_xlim[1]], dtype=float)
-                d_plot = np.array([steady_delta, steady_delta], dtype=float)
-            else:
-                t_plot, d_plot = t, d
-            dec_y.append(d_plot)
-            plt.plot(t_plot, d_plot, linestyle="-", label=label, color=colors[idx % len(colors)])
+            dec_y.append(d)
+            plt.plot(t, d, linestyle="-", label=label, color=colors[idx % len(colors)])
 
-        dec_finalize: dict = {"ylabel": "δ", "y_series": dec_y}
+        dec_ylim = auto_plot_ylim(dec_y, pad_frac=0.15, min_pad=0.08)
+        dec_finalize: dict = {"ylabel": "δ", "y_series": dec_y, "thesis_export": thesis_export}
+        if dec_ylim is not None:
+            dec_finalize["ylim"] = dec_ylim
         if thesis_export:
             dec_finalize.update(
                 xlim=thesis_plot_xlim,
-                ylim=THESIS_DECREMENT_YLIM,
                 xticks=thesis_xticks,
-                yticks=THESIS_DECREMENT_YTICKS,
             )
         finalize_html_series_plot(**dec_finalize)
+
+        delta_annot_str = env_optional("DECREMENT_ANNOT_DELTA")
+        delta0_annot_str = env_optional("DECREMENT_ANNOT_DELTA0")
+        delta_annot = env_float_optional("DECREMENT_ANNOT_DELTA")
+        if delta_annot is not None and delta_annot_str is not None:
+            ax = plt.gca()
+            ax.axhline(
+                delta_annot,
+                color="0.45",
+                linestyle="--",
+                linewidth=1.2,
+                alpha=0.85,
+                zorder=1,
+            )
+            ann_fs = THESIS_TICK_LABEL_FONTSIZE if thesis_export else HTML_TICK_LABEL_FONTSIZE
+            x_left, x_right = ax.get_xlim()
+            x_text = x_left + 0.03 * (x_right - x_left)
+            ax.text(
+                x_text,
+                delta_annot,
+                rf"$\delta \approx {delta_annot_str}$",
+                fontsize=ann_fs,
+                va="bottom",
+                ha="left",
+                color="0.25",
+                clip_on=True,
+            )
+            if delta0_annot_str is not None:
+                ax.text(
+                    x_text,
+                    delta_annot,
+                    rf"$\delta_0 \approx {delta0_annot_str}$",
+                    fontsize=ann_fs,
+                    va="top",
+                    ha="left",
+                    color="0.25",
+                    clip_on=True,
+                )
+
         out_dec = plots_dir / dec_img_name
         plt.savefig(out_dec, dpi=200, bbox_inches="tight", pad_inches=0.06)
         plt.close()
@@ -1593,24 +1688,24 @@ def generate_plots_and_html():
     energy_path = data_dir / "sumEnergyPoints.txt"
     energy_exists = energy_path.exists()
 
-    if (not PARALLEL_ONLY_DECREMENT_MAPS) and energy_exists:
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and (not PREZ_EXPORT_ONLY) and energy_exists:
         tE, E = load_two_column_txt(energy_path)
 
         plt.figure(figsize=(10, 4))
         plt.plot(tE, E, label="E")
-        finalize_html_series_plot(ylabel="E", y_series=[E])
+        finalize_html_series_plot(ylabel="E", y_series=[E], thesis_export=thesis_export)
 
         out_energy = plots_dir / energy_img_name
         plt.savefig(out_energy, dpi=200, bbox_inches="tight", pad_inches=0.06)
         plt.close()
-    elif not PARALLEL_ONLY_DECREMENT_MAPS:
+    elif not PARALLEL_ONLY_DECREMENT_MAPS and not PREZ_EXPORT_ONLY:
         print(f"Файл с энергией не найден: {energy_path}")
 
     # ---------- Производная полной энергии dSumEnergyPoints.txt ----------
     dsum_energy_path = data_dir / "dSumEnergyPoints.txt"
     dsum_energy_exists = dsum_energy_path.exists()
 
-    if (not PARALLEL_ONLY_DECREMENT_MAPS) and dsum_energy_exists:
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and (not PREZ_EXPORT_ONLY) and dsum_energy_exists:
         tdE, dE = load_two_column_txt(dsum_energy_path)
 
         plt.figure(figsize=(10, 4))
@@ -1625,7 +1720,7 @@ def generate_plots_and_html():
         out_dsum_energy = plots_dir / dsum_energy_img_name
         plt.savefig(out_dsum_energy, dpi=200)
         plt.close()
-    elif not PARALLEL_ONLY_DECREMENT_MAPS:
+    elif not PARALLEL_ONLY_DECREMENT_MAPS and not PREZ_EXPORT_ONLY:
         print(f"Файл с производной полной энергии не найден: {dsum_energy_path}")
 
     # ---------- Энергия по узлам energy_points*.txt (только без PARALLEL) ----------
@@ -1638,7 +1733,7 @@ def generate_plots_and_html():
     else:
         energy_per_node_files = sorted(data_dir.glob("energy_points*.txt"))
 
-    if (not PARALLEL_ONLY_DECREMENT_MAPS) and energy_per_node_files:
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and (not PREZ_EXPORT_ONLY) and energy_per_node_files:
         plt.figure(figsize=(10, 6))
         colors = plt.cm.tab10.colors
         for idx, path in enumerate(energy_per_node_files):
@@ -1656,7 +1751,7 @@ def generate_plots_and_html():
             safe_tight_layout()
             plt.savefig(plots_dir / node_energy_img_name, dpi=200)
         plt.close()
-    elif not PARALLEL_ONLY_DECREMENT_MAPS and not energy_per_node_files:
+    elif not PARALLEL_ONLY_DECREMENT_MAPS and not PREZ_EXPORT_ONLY and not energy_per_node_files:
         print(f"Файлы energy_points*.txt не найдены в {data_dir}")
 
     # ---------- Производная энергии по узлам d_energy_points*.txt (только без PARALLEL) ----------
@@ -1669,7 +1764,7 @@ def generate_plots_and_html():
     else:
         d_energy_per_node_files = sorted(data_dir.glob("d_energy_points*.txt"))
 
-    if (not PARALLEL_ONLY_DECREMENT_MAPS) and d_energy_per_node_files:
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and (not PREZ_EXPORT_ONLY) and d_energy_per_node_files:
         plt.figure(figsize=(10, 6))
         colors = plt.cm.tab10.colors
         for idx, path in enumerate(d_energy_per_node_files):
@@ -1687,11 +1782,11 @@ def generate_plots_and_html():
             safe_tight_layout()
             plt.savefig(plots_dir / node_d_energy_img_name, dpi=200)
         plt.close()
-    elif not PARALLEL_ONLY_DECREMENT_MAPS and not d_energy_per_node_files:
+    elif not PARALLEL_ONLY_DECREMENT_MAPS and not PREZ_EXPORT_ONLY and not d_energy_per_node_files:
         print(f"Файлы d_energy_points*.txt не найдены в {data_dir}")
 
     # ---------- Аналитическая dA/dt от среднего δ (только без PARALLEL) ----------
-    if not PARALLEL_ONLY_DECREMENT_MAPS:
+    if (not PARALLEL_ONLY_DECREMENT_MAPS) and (not PREZ_EXPORT_ONLY):
         logs_an_path = data_dir / "decrement_details.log"
         log_an_text = ""
         if logs_an_path.exists():

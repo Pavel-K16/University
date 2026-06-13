@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """
-Перебор расстройки k между соседними лопатками (8blades2).
+Перебор расстройки k между соседними лопатками.
 Чётные лопатки: k = 1 - delta; нечётные: k = 1 + delta; шаг delta = 0.005.
 Остановка, когда epsilon > 30%.
+
+Пример:
+  python3 scripts/sweep_detuning.py --config 8blades2
+  python3 scripts/sweep_detuning.py --config 8blades2 --plot-only
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -22,24 +27,69 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
-CONF_PATH = ROOT / "internal" / "config" / "confs" / "8blades2.json"
-CONF_BACKUP = ROOT / "internal" / "config" / "confs" / "8blades2.json.bak_sweep"
-OUT_DIR = ROOT / "wolfram" / "detuning_sweep"
+CONF_DIR = ROOT / "internal" / "config" / "confs"
 DATA_DIR = ROOT / "wolfram" / "paramsAndPoints"
-PLOTS_DIR = OUT_DIR / "plots"
 THESIS_DIR = ROOT / "doc" / "images"
+DEFAULT_CONFIG = "8blades2"
+SWEEP_ROOT = ROOT / "wolfram" / "detuning_sweep"
+DELTA_MEAN_YLABEL = r"$\bar{\delta}$"
 
 HTML_SERIES_FIGSIZE = (10, 6)
 HTML_LEGEND_RIGHT = 0.76
 THESIS_DPI = 200
+THESIS_AXIS_LABEL_FONTSIZE = 17
+THESIS_TICK_LABEL_FONTSIZE = 14
+THESIS_LEGEND_FONTSIZE = 12
 
 HUB_ID = 8
 MASS = 2.0
 K_STEP = 0.005
 EPSILON_LIMIT = 30.0
 PAIRS = [(0, 1), (2, 3), (4, 5), (6, 7)]
+BLADE_IDS = list(range(8))
 EVEN_BLADES = {0, 2, 4, 6}
 ODD_BLADES = {1, 3, 5, 7}
+
+
+@dataclass(frozen=True)
+class SweepContext:
+    config_name: str
+    conf_path: Path
+    conf_backup: Path
+    out_dir: Path
+
+    @property
+    def plots_dir(self) -> Path:
+        return self.out_dir / "plots"
+
+    def thesis_name(self, stem: str) -> str:
+        if self.config_name == DEFAULT_CONFIG:
+            return f"detuning_{stem}.png"
+        return f"detuning_{self.config_name}_{stem}.png"
+
+
+def normalize_config_name(name: str) -> str:
+    return name.strip().removesuffix(".json")
+
+
+def resolve_out_dir(config_name: str) -> Path:
+    """8blades2 — в wolfram/detuning_sweep/; остальные — в подпапку."""
+    if config_name == DEFAULT_CONFIG:
+        return SWEEP_ROOT
+    return SWEEP_ROOT / config_name
+
+
+def make_sweep_context(config_name: str) -> SweepContext:
+    config_name = normalize_config_name(config_name)
+    conf_path = CONF_DIR / f"{config_name}.json"
+    if not conf_path.exists():
+        raise FileNotFoundError(f"Конфиг не найден: {conf_path}")
+    return SweepContext(
+        config_name=config_name,
+        conf_path=conf_path,
+        conf_backup=CONF_DIR / f"{config_name}.json.bak_sweep",
+        out_dir=resolve_out_dir(config_name),
+    )
 
 
 def omega(k: float, m: float = MASS) -> float:
@@ -50,6 +100,40 @@ def epsilon_percent(k1: float, k2: float, m: float = MASS) -> float:
     w1 = omega(k1, m)
     w2 = omega(k2, m)
     return abs(w1 - w2) / ((w1 + w2) / 2.0) * 100.0
+
+
+def natural_frequencies_from_row(row: dict, m: float = MASS) -> np.ndarray:
+    """ω₀ᵢ = √(kᵢ/m) по аналитической формуле из конфига."""
+    return np.array([omega(float(row[f"k_{i}"]), m) for i in BLADE_IDS], dtype=float)
+
+
+def compute_d_from_row(row: dict, m: float = MASS) -> tuple[float, float, float]:
+    """d = RMSE(ω₀ᵢ) / Ave(ω₀ᵢ); возвращает (d, rmse, ave)."""
+    omegas = natural_frequencies_from_row(row, m)
+    ave = float(np.mean(omegas))
+    if ave <= 0:
+        return 0.0, 0.0, ave
+    rmse = float(np.sqrt(np.mean((omegas - ave) ** 2)))
+    return rmse / ave, rmse, ave
+
+
+def mean_delta_all_blades(row: dict) -> float:
+    """Средний декремент δ̄ по всем подвижным лопаткам."""
+    return float(np.mean([float(row[f"delta_node_{i}"]) for i in BLADE_IDS]))
+
+
+def enrich_row(row: dict) -> dict:
+    out = dict(row)
+    d, rmse, ave = compute_d_from_row(out)
+    out["omega_avg"] = round(ave, 9)
+    out["omega_rmse"] = round(rmse, 9)
+    out["d"] = round(d, 9)
+    out["delta_mean"] = mean_delta_all_blades(out)
+    return out
+
+
+def enrich_rows(rows: list[dict]) -> list[dict]:
+    return [enrich_row(r) for r in rows]
 
 
 def hub_k_values(delta: float) -> dict[int, float]:
@@ -102,9 +186,9 @@ def build_binary() -> Path:
     return bin_path
 
 
-def run_simulation(bin_path: Path) -> None:
+def run_simulation(bin_path: Path, ctx: SweepContext) -> None:
     env = os.environ.copy()
-    env["CONFIG"] = "8blades2"
+    env["CONFIG"] = ctx.config_name
     subprocess.run(
         [str(bin_path)],
         cwd=SCRIPTS,
@@ -164,17 +248,20 @@ def auto_plot_ylim(y_series: list[np.ndarray], pad_frac: float = 0.08) -> tuple[
 def finalize_thesis_detuning_plot(
     *,
     ylabel: str = "δ",
+    x_label: str = "ε, %",
     xlim: tuple[float, float] | None = None,
     ylim: tuple[float, float] | None = None,
     xticks: list[float] | None = None,
     yticks: list[float] | None = None,
     y_series: list[np.ndarray] | None = None,
+    show_legend: bool = True,
 ) -> None:
     """Оформление в стиле диплома (как finalize_html_series_plot в plot_points.py)."""
     ax = plt.gca()
     ax.set_xlabel("")
     ax.set_ylabel("")
     ax.grid(True, alpha=0.3)
+    ax.tick_params(axis="both", labelsize=THESIS_TICK_LABEL_FONTSIZE)
     if xlim is not None:
         ax.set_xlim(*xlim)
     if ylim is not None:
@@ -196,42 +283,44 @@ def finalize_thesis_detuning_plot(
         transform=ax.transAxes,
         ha="left",
         va="bottom",
-        fontsize=12,
+        fontsize=THESIS_AXIS_LABEL_FONTSIZE,
         clip_on=False,
     )
     ax.annotate(
-        "ε, %",
+        x_label,
         xy=(xmax, ymin),
         xycoords="data",
         xytext=(8, 0),
         textcoords="offset points",
         ha="left",
         va="center",
-        fontsize=12,
+        fontsize=THESIS_AXIS_LABEL_FONTSIZE,
         clip_on=False,
     )
-    ax.legend(
-        loc="upper left",
-        bbox_to_anchor=(1.02, 1.0),
-        frameon=True,
-        borderaxespad=0.0,
-        fontsize=10,
-    )
-    plt.gcf().subplots_adjust(left=0.08, right=HTML_LEGEND_RIGHT, top=0.96)
-    plt.tight_layout(rect=(0.0, 0.0, HTML_LEGEND_RIGHT, 1.0))
+    right_margin = HTML_LEGEND_RIGHT if show_legend else 0.92
+    if show_legend:
+        ax.legend(
+            loc="upper left",
+            bbox_to_anchor=(1.02, 1.0),
+            frameon=True,
+            borderaxespad=0.0,
+            fontsize=THESIS_LEGEND_FONTSIZE,
+        )
+    plt.gcf().subplots_adjust(left=0.08, right=right_margin, top=0.96)
+    plt.tight_layout(rect=(0.0, 0.0, right_margin, 1.0))
 
 
 def plot_detuning_series(
     ax: plt.Axes,
-    eps: list[float],
-    deltas: np.ndarray,
+    x: list[float] | np.ndarray,
+    y: np.ndarray,
     *,
     color,
-    label: str,
+    label: str | None = None,
 ) -> None:
     ax.plot(
-        eps,
-        deltas,
+        x,
+        y,
         color=color,
         linewidth=1.2,
         marker="o",
@@ -240,6 +329,73 @@ def plot_detuning_series(
         markeredgecolor=color,
         label=label,
     )
+
+
+def draw_d_zero_crossing_marker(
+    ax: plt.Axes,
+    d_zero: float,
+    *,
+    color: str = "#1f77b4",
+) -> None:
+    ymin, _ = ax.get_ylim()
+    ax.axvline(d_zero, color=color, linestyle="--", linewidth=1.2, alpha=0.85, zorder=3)
+    ax.axhline(0.0, color="gray", linestyle=":", linewidth=0.8, alpha=0.6, zorder=1)
+    ax.plot([d_zero], [0.0], "o", color=color, markersize=6, zorder=4)
+    ax.annotate(
+        f"d₀ = {d_zero:.4f}",
+        xy=(d_zero, ymin),
+        xycoords="data",
+        xytext=(6, 6),
+        textcoords="offset points",
+        ha="left",
+        va="bottom",
+        fontsize=CROSSING_EPS_FONT_SIZE,
+        color=color,
+        clip_on=False,
+    )
+
+
+def nice_d_xticks(d_values: np.ndarray, count: int = 7) -> list[float]:
+    d_max = float(np.max(d_values))
+    if d_max <= 0:
+        return [0.0]
+    step = d_max / max(count - 1, 1)
+    magnitude = 10 ** math.floor(math.log10(step)) if step > 0 else 0.001
+    step = max(magnitude, math.ceil(step / magnitude) * magnitude / 2)
+    ticks = []
+    v = 0.0
+    while v <= d_max + step * 0.01:
+        ticks.append(round(v, 6))
+        v += step
+    return ticks
+
+
+def plot_d_vs_mean_delta(rows: list[dict], ctx: SweepContext) -> float | None:
+    """График d = RMSE(ω₀ᵢ)/Ave(ω₀ᵢ) от среднего декремента δ̄."""
+    d_vals = np.array([float(r["d"]) for r in rows], dtype=float)
+    delta_mean = np.array([float(r["delta_mean"]) for r in rows], dtype=float)
+    color = "#1f77b4"
+
+    d0 = find_zero_crossing_eps(d_vals.tolist(), delta_mean.tolist())
+    xlim = (0.0, float(np.max(d_vals)) * 1.02)
+    xticks = nice_d_xticks(d_vals)
+
+    fig, ax = plt.subplots(figsize=HTML_SERIES_FIGSIZE)
+    plot_detuning_series(ax, d_vals, delta_mean, color=color, label=None)
+    finalize_thesis_detuning_plot(
+        ylabel=DELTA_MEAN_YLABEL,
+        x_label="d",
+        xlim=xlim,
+        ylim=auto_plot_ylim([delta_mean]),
+        xticks=xticks,
+        y_series=[delta_mean],
+        show_legend=False,
+    )
+    if d0 is not None:
+        draw_d_zero_crossing_marker(ax, d0, color=color)
+    save_figure(THESIS_DIR / ctx.thesis_name("d_vs_delta_mean"), close=False)
+    save_figure(ctx.plots_dir / "d_vs_delta_mean.png")
+    return d0
 
 
 CROSSING_EPS_FONT_SIZE = 9
@@ -329,9 +485,13 @@ def crossing_info_at_eps0(rows: list[dict], a: int, b: int, eps0: float) -> dict
     }
 
 
-def plot_results(rows: list[dict]) -> dict[str, dict[str, float]]:
-    PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+def plot_results(rows: list[dict], ctx: SweepContext) -> tuple[dict[str, dict[str, float]], float | None]:
+    ctx.plots_dir.mkdir(parents=True, exist_ok=True)
     THESIS_DIR.mkdir(parents=True, exist_ok=True)
+
+    rows = enrich_rows(rows)
+    save_enriched_results(rows, ctx)
+    d0 = plot_d_vs_mean_delta(rows, ctx)
 
     colors = plt.cm.tab10(np.linspace(0, 0.4, len(PAIRS)))
     eps = [float(r["epsilon_pct"]) for r in rows]
@@ -382,8 +542,8 @@ def plot_results(rows: list[dict]) -> dict[str, dict[str, float]]:
                 k_b=k_b,
                 y_offset_px=6 + idx * 48,
             )
-    save_figure(THESIS_DIR / "detuning_delta_vs_epsilon_all_pairs.png", close=False)
-    save_figure(PLOTS_DIR / "all_pairs.png")
+    save_figure(THESIS_DIR / ctx.thesis_name("delta_vs_epsilon_all_pairs"), close=False)
+    save_figure(ctx.plots_dir / "all_pairs.png")
 
     # --- по одной паре ---
     for idx, (a, b, deltas, eps0, k_a, k_b) in enumerate(series_data):
@@ -406,15 +566,51 @@ def plot_results(rows: list[dict]) -> dict[str, dict[str, float]]:
                 k_a=k_a,
                 k_b=k_b,
             )
-        save_figure(THESIS_DIR / f"detuning_delta_vs_epsilon_pair_{a}_{b}.png", close=False)
-        save_figure(PLOTS_DIR / f"pair_{a}_{b}.png")
+        save_figure(THESIS_DIR / ctx.thesis_name(f"delta_vs_epsilon_pair_{a}_{b}"), close=False)
+        save_figure(ctx.plots_dir / f"pair_{a}_{b}.png")
 
-    crossings_path = OUT_DIR / "zero_crossings.json"
+    crossings_path = ctx.out_dir / "zero_crossings.json"
+    summary = {
+        "config": ctx.config_name,
+        "epsilon_pairs": crossings,
+        "d_at_delta_mean_zero": d0,
+    }
     crossings_path.write_text(
-        json.dumps(crossings, indent=2, ensure_ascii=False) + "\n",
+        json.dumps(summary, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-    return crossings
+    return crossings, d0
+
+
+def enriched_fieldnames(rows: list[dict]) -> list[str]:
+    preferred = [
+        "step", "delta_k", "epsilon_pct", "k_even", "k_odd",
+        "d", "omega_avg", "omega_rmse", "delta_mean",
+    ]
+    for a, b in PAIRS:
+        preferred.extend([
+            f"k_{a}", f"k_{b}",
+            f"delta_node_{a}", f"delta_node_{b}",
+            f"delta_pair_{a}_{b}",
+        ])
+    if not rows:
+        return preferred
+    existing = list(rows[0].keys())
+    return [name for name in preferred if name in existing] + [
+        name for name in existing if name not in preferred
+    ]
+
+
+def save_enriched_results(rows: list[dict], ctx: SweepContext) -> None:
+    ctx.out_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = ctx.out_dir / "raw_results.csv"
+    json_path = ctx.out_dir / "raw_results.json"
+    fieldnames = enriched_fieldnames(rows)
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+    json_path.write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
 def load_rows_from_csv(csv_path: Path) -> list[dict]:
@@ -423,7 +619,12 @@ def load_rows_from_csv(csv_path: Path) -> list[dict]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Перебор расстройки k (8blades2)")
+    parser = argparse.ArgumentParser(description="Перебор расстройки k для конфига с 8 лопатками")
+    parser.add_argument(
+        "--config",
+        default=DEFAULT_CONFIG,
+        help=f"Имя конфига без .json (по умолчанию: {DEFAULT_CONFIG})",
+    )
     parser.add_argument(
         "--plot-only",
         action="store_true",
@@ -431,25 +632,35 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        ctx = make_sweep_context(args.config)
+    except FileNotFoundError as exc:
+        print(exc, file=sys.stderr)
+        return 1
 
-    csv_path = OUT_DIR / "raw_results.csv"
+    ctx.out_dir.mkdir(parents=True, exist_ok=True)
+    ctx.plots_dir.mkdir(parents=True, exist_ok=True)
+
+    csv_path = ctx.out_dir / "raw_results.csv"
     if args.plot_only:
         if not csv_path.exists():
             print(f"Нет данных: {csv_path}", file=sys.stderr)
             return 1
         rows = load_rows_from_csv(csv_path)
-        crossings = plot_results(rows)
-        print(f"Графики: {THESIS_DIR}")
+        crossings, d0 = plot_results(rows, ctx)
+        print(f"Конфиг: {ctx.config_name}")
+        print(f"Данные: {ctx.out_dir}")
+        print(f"Графики (диплом): {THESIS_DIR}")
         print(f"Пересечение δ=0 (ε₀): {crossings}")
+        print(f"Пересечение δ̄=0 (d₀): {d0}")
         return 0
 
-    if not CONF_BACKUP.exists():
-        CONF_BACKUP.write_text(CONF_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    if not ctx.conf_backup.exists():
+        ctx.conf_backup.write_text(ctx.conf_path.read_text(encoding="utf-8"), encoding="utf-8")
 
-    base_config = json.loads(CONF_BACKUP.read_text(encoding="utf-8"))
+    base_config = json.loads(ctx.conf_backup.read_text(encoding="utf-8"))
     deltas = generate_deltas()
+    print(f"Конфиг: {ctx.config_name}")
     print(f"Точек перебора: {len(deltas)} (epsilon <= {EPSILON_LIMIT}%)")
 
     bin_path = build_binary()
@@ -462,6 +673,10 @@ def main() -> int:
         "epsilon_pct",
         "k_even",
         "k_odd",
+        "d",
+        "omega_avg",
+        "omega_rmse",
+        "delta_mean",
     ]
     for a, b in PAIRS:
         fieldnames.extend([
@@ -480,7 +695,7 @@ def main() -> int:
             eps = epsilon_percent(k_lo, k_hi)
 
             cfg = apply_k_to_config(base_config, k_map)
-            CONF_PATH.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            ctx.conf_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
             k_line = (
                 f"step={step:03d} delta={delta:.3f} eps={eps:.4f}% "
@@ -490,7 +705,7 @@ def main() -> int:
             k_log_lines.append(k_line)
             print(k_line)
 
-            run_simulation(bin_path)
+            run_simulation(bin_path, ctx)
 
             node_deltas: dict[int, float | None] = {}
             for n in range(8):
@@ -520,26 +735,27 @@ def main() -> int:
                 else:
                     row[f"delta_pair_{a}_{b}"] = ""
 
-            rows.append(row)
+            rows.append(enrich_row(row))
 
         with csv_path.open("w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)
 
-        k_log_path = OUT_DIR / "k_values.log"
+        k_log_path = ctx.out_dir / "k_values.log"
         k_log_path.write_text("\n".join(k_log_lines) + "\n", encoding="utf-8")
 
-        json_path = OUT_DIR / "raw_results.json"
+        json_path = ctx.out_dir / "raw_results.json"
         json_path.write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
-        crossings = plot_results(rows)
+        crossings, d0 = plot_results(rows, ctx)
         print(f"\nГотово: {csv_path}")
         print(f"Графики (диплом): {THESIS_DIR}")
-        print(f"Графики (preview): {PLOTS_DIR}")
+        print(f"Графики (preview): {ctx.plots_dir}")
         print(f"Пересечение δ=0 (ε₀): {crossings}")
+        print(f"Пересечение δ̄=0 (d₀): {d0}")
     finally:
-        CONF_PATH.write_text(CONF_BACKUP.read_text(encoding="utf-8"), encoding="utf-8")
+        ctx.conf_path.write_text(ctx.conf_backup.read_text(encoding="utf-8"), encoding="utf-8")
         if bin_path.exists():
             bin_path.unlink()
 
