@@ -95,6 +95,8 @@ def apply_mathematica_style(
     y_ticks: np.ndarray | None = None,
     y_label: str = "x",
     x_label: str = "t",
+    label_fontsize: float = 13,
+    tick_fontsize: float = 12,
 ) -> list[plt.Annotation]:
     """Оформление осей в духе Mathematica: t вправо, подпись y вверх, без сетки."""
     ax.grid(False)
@@ -139,7 +141,7 @@ def apply_mathematica_style(
         else:
             ax.yaxis.set_major_locator(MaxNLocator(nbins=6, min_n_ticks=4))
 
-    ax.tick_params(axis="both", direction="out", length=5, width=0.9, colors="black")
+    ax.tick_params(axis="both", direction="out", length=5, width=0.9, colors="black", labelsize=tick_fontsize)
 
     # Подписи у концов осей: t — справа от горизонтальной оси, x — над вертикальной.
     ax.set_xlabel("")
@@ -153,7 +155,7 @@ def apply_mathematica_style(
         textcoords="offset points",
         ha="left",
         va="center",
-        fontsize=13,
+        fontsize=label_fontsize,
         fontstyle="italic",
         clip_on=False,
     )
@@ -165,7 +167,7 @@ def apply_mathematica_style(
         textcoords="offset points",
         ha="center",
         va="bottom",
-        fontsize=13,
+        fontsize=label_fontsize,
         fontstyle="italic",
         clip_on=False,
     )

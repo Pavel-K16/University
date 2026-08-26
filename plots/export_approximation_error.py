@@ -33,7 +33,10 @@ X_MAX = 0.10
 Y_MIN = 1e-7
 Y_MAX = 1e-1
 MARKER_COLOR = "black"
-MARKER_SIZE = 55
+MARKER_SIZE = 70
+AXIS_LABEL_FONTSIZE = 21
+TICK_LABEL_FONTSIZE = 18
+CURVE_WIDTH_ERR = 2.4
 
 
 def apply_mathematica_log_style(
@@ -44,6 +47,8 @@ def apply_mathematica_log_style(
     y_max: float = Y_MAX,
     x_label: str = "τ",
     y_label: str = "err",
+    label_fontsize: float = AXIS_LABEL_FONTSIZE,
+    tick_fontsize: float = TICK_LABEL_FONTSIZE,
 ) -> None:
     """Оформление log-графика в духе Mathematica: подписи у концов осей, без сетки."""
     ax.grid(False)
@@ -58,7 +63,7 @@ def apply_mathematica_log_style(
     ax.spines["left"].set_position(("data", 0.0))
     ax.spines["bottom"].set_position(("data", y_min))
 
-    ax.tick_params(axis="both", direction="out", length=5, width=0.9, colors="black")
+    ax.tick_params(axis="both", direction="out", length=5, width=0.9, colors="black", labelsize=tick_fontsize)
     ax.set_xlabel("")
     ax.set_ylabel("")
     ax.annotate(
@@ -69,7 +74,7 @@ def apply_mathematica_log_style(
         textcoords="offset points",
         ha="left",
         va="center",
-        fontsize=13,
+        fontsize=label_fontsize,
         fontstyle="italic",
     )
     ax.annotate(
@@ -80,7 +85,7 @@ def apply_mathematica_log_style(
         textcoords="offset points",
         ha="center",
         va="bottom",
-        fontsize=13,
+        fontsize=label_fontsize,
         fontstyle="italic",
     )
 
@@ -97,7 +102,7 @@ def plot_approximation_error(
         tau,
         err,
         color=CURVE_COLOR,
-        linewidth=CURVE_WIDTH,
+        linewidth=CURVE_WIDTH_ERR,
         solid_capstyle="round",
         zorder=2,
     )

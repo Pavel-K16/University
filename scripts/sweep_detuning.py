@@ -7,6 +7,8 @@
 Пример:
   python3 scripts/sweep_detuning.py --config 8blades2
   python3 scripts/sweep_detuning.py --config 8blades2 --plot-only
+
+Графики: plots/all_blades.png (ε ↔ δ̄), plots/all_pairs.png (по парам), …
 """
 
 from __future__ import annotations
@@ -35,11 +37,12 @@ SWEEP_ROOT = ROOT / "wolfram" / "detuning_sweep"
 DELTA_MEAN_YLABEL = r"$\bar{\delta}$"
 
 HTML_SERIES_FIGSIZE = (10, 6)
+D_VS_DELTA_FIGSIZE = (13, 6)  # шире по X — деления d не слипаются
 HTML_LEGEND_RIGHT = 0.76
 THESIS_DPI = 200
-THESIS_AXIS_LABEL_FONTSIZE = 17
-THESIS_TICK_LABEL_FONTSIZE = 14
-THESIS_LEGEND_FONTSIZE = 12
+THESIS_AXIS_LABEL_FONTSIZE = 21
+THESIS_TICK_LABEL_FONTSIZE = 18
+THESIS_LEGEND_FONTSIZE = 14
 
 HUB_ID = 8
 MASS = 2.0
@@ -219,6 +222,12 @@ def interpolate_k_at_eps(rows: list[dict], eps_target: float, blade_id: int) -> 
     return float(np.interp(eps_target, eps_arr, k_arr))
 
 
+def interpolate_field_at_eps(rows: list[dict], eps_target: float, field: str) -> float:
+    eps_arr = np.array([float(r["epsilon_pct"]) for r in rows], dtype=float)
+    vals = np.array([float(r[field]) for r in rows], dtype=float)
+    return float(np.interp(eps_target, eps_arr, vals))
+
+
 def find_zero_crossing_eps(eps: list[float], deltas: list[float]) -> float | None:
     """Линейная интерполяция точки пересечения δ=0."""
     for i in range(1, len(deltas)):
@@ -359,6 +368,15 @@ def nice_d_xticks(d_values: np.ndarray, count: int = 7) -> list[float]:
     d_max = float(np.max(d_values))
     if d_max <= 0:
         return [0.0]
+    # Для презентации: крупный шаг, чтобы подписи d не слипались
+    for step in (0.05, 0.04, 0.03, 0.025, 0.02, 0.015):
+        ticks = []
+        v = 0.0
+        while v <= d_max + step * 0.01:
+            ticks.append(round(v, 4))
+            v += step
+        if len(ticks) <= count + 1:
+            return ticks
     step = d_max / max(count - 1, 1)
     magnitude = 10 ** math.floor(math.log10(step)) if step > 0 else 0.001
     step = max(magnitude, math.ceil(step / magnitude) * magnitude / 2)
@@ -378,9 +396,10 @@ def plot_d_vs_mean_delta(rows: list[dict], ctx: SweepContext) -> float | None:
 
     d0 = find_zero_crossing_eps(d_vals.tolist(), delta_mean.tolist())
     xlim = (0.0, float(np.max(d_vals)) * 1.02)
-    xticks = nice_d_xticks(d_vals)
+    xticks = nice_d_xticks(d_vals, count=6)
+    xticklabels = [f"{t:.2f}" for t in xticks]
 
-    fig, ax = plt.subplots(figsize=HTML_SERIES_FIGSIZE)
+    fig, ax = plt.subplots(figsize=D_VS_DELTA_FIGSIZE)
     plot_detuning_series(ax, d_vals, delta_mean, color=color, label=None)
     finalize_thesis_detuning_plot(
         ylabel=DELTA_MEAN_YLABEL,
@@ -391,6 +410,7 @@ def plot_d_vs_mean_delta(rows: list[dict], ctx: SweepContext) -> float | None:
         y_series=[delta_mean],
         show_legend=False,
     )
+    ax.set_xticklabels(xticklabels)
     if d0 is not None:
         draw_d_zero_crossing_marker(ax, d0, color=color)
     save_figure(THESIS_DIR / ctx.thesis_name("d_vs_delta_mean"), close=False)
@@ -398,9 +418,45 @@ def plot_d_vs_mean_delta(rows: list[dict], ctx: SweepContext) -> float | None:
     return d0
 
 
-CROSSING_EPS_FONT_SIZE = 9
-CROSSING_K_FONT_SIZE = 8
-CROSSING_LINE_STEP_PX = 13
+def plot_delta_vs_epsilon_all_blades(rows: list[dict], ctx: SweepContext) -> float | None:
+    """ε ↔ средний декремент δ̄ по всем 8 лопаткам (одна кривая)."""
+    eps = [float(r["epsilon_pct"]) for r in rows]
+    delta_mean = np.array([float(r["delta_mean"]) for r in rows], dtype=float)
+    color = "#1f77b4"
+    eps0 = find_zero_crossing_eps(eps, delta_mean.tolist())
+    xlim = (0.0, EPSILON_LIMIT)
+    xticks = list(range(0, 31, 5))
+
+    fig, ax = plt.subplots(figsize=HTML_SERIES_FIGSIZE)
+    plot_detuning_series(ax, eps, delta_mean, color=color, label=None)
+    finalize_thesis_detuning_plot(
+        ylabel=DELTA_MEAN_YLABEL,
+        xlim=xlim,
+        ylim=auto_plot_ylim([delta_mean]),
+        xticks=xticks,
+        y_series=[delta_mean],
+        show_legend=False,
+    )
+    if eps0 is not None:
+        k_even = interpolate_field_at_eps(rows, eps0, "k_even")
+        k_odd = interpolate_field_at_eps(rows, eps0, "k_odd")
+        draw_zero_crossing_marker(
+            ax,
+            eps0,
+            color=color,
+            blade_a=0,
+            blade_b=1,
+            k_a=k_even,
+            k_b=k_odd,
+        )
+    save_figure(THESIS_DIR / ctx.thesis_name("delta_vs_epsilon_all_blades"), close=False)
+    save_figure(ctx.plots_dir / "all_blades.png")
+    return eps0
+
+
+CROSSING_EPS_FONT_SIZE = 13
+CROSSING_K_FONT_SIZE = 12
+CROSSING_LINE_STEP_PX = 16
 _SUBSCRIPTS = "₀₁₂₃₄₅₆₇₈₉"
 
 
@@ -485,13 +541,14 @@ def crossing_info_at_eps0(rows: list[dict], a: int, b: int, eps0: float) -> dict
     }
 
 
-def plot_results(rows: list[dict], ctx: SweepContext) -> tuple[dict[str, dict[str, float]], float | None]:
+def plot_results(rows: list[dict], ctx: SweepContext) -> tuple[dict[str, dict[str, float]], float | None, float | None]:
     ctx.plots_dir.mkdir(parents=True, exist_ok=True)
     THESIS_DIR.mkdir(parents=True, exist_ok=True)
 
     rows = enrich_rows(rows)
     save_enriched_results(rows, ctx)
     d0 = plot_d_vs_mean_delta(rows, ctx)
+    eps0_all = plot_delta_vs_epsilon_all_blades(rows, ctx)
 
     colors = plt.cm.tab10(np.linspace(0, 0.4, len(PAIRS)))
     eps = [float(r["epsilon_pct"]) for r in rows]
@@ -570,16 +627,24 @@ def plot_results(rows: list[dict], ctx: SweepContext) -> tuple[dict[str, dict[st
         save_figure(ctx.plots_dir / f"pair_{a}_{b}.png")
 
     crossings_path = ctx.out_dir / "zero_crossings.json"
+    all_blades_crossing: dict[str, float] | None = None
+    if eps0_all is not None:
+        all_blades_crossing = {
+            "epsilon_pct": eps0_all,
+            "k_even": interpolate_field_at_eps(rows, eps0_all, "k_even"),
+            "k_odd": interpolate_field_at_eps(rows, eps0_all, "k_odd"),
+        }
     summary = {
         "config": ctx.config_name,
         "epsilon_pairs": crossings,
+        "epsilon_all_blades": all_blades_crossing,
         "d_at_delta_mean_zero": d0,
     }
     crossings_path.write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-    return crossings, d0
+    return crossings, d0, eps0_all
 
 
 def enriched_fieldnames(rows: list[dict]) -> list[str]:
@@ -647,11 +712,12 @@ def main() -> int:
             print(f"Нет данных: {csv_path}", file=sys.stderr)
             return 1
         rows = load_rows_from_csv(csv_path)
-        crossings, d0 = plot_results(rows, ctx)
+        crossings, d0, eps0_all = plot_results(rows, ctx)
         print(f"Конфиг: {ctx.config_name}")
         print(f"Данные: {ctx.out_dir}")
         print(f"Графики (диплом): {THESIS_DIR}")
-        print(f"Пересечение δ=0 (ε₀): {crossings}")
+        print(f"Пересечение δ=0 (ε₀) по парам: {crossings}")
+        print(f"Пересечение δ̄=0 (ε₀): {eps0_all}")
         print(f"Пересечение δ̄=0 (d₀): {d0}")
         return 0
 
@@ -748,11 +814,12 @@ def main() -> int:
         json_path = ctx.out_dir / "raw_results.json"
         json_path.write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
-        crossings, d0 = plot_results(rows, ctx)
+        crossings, d0, eps0_all = plot_results(rows, ctx)
         print(f"\nГотово: {csv_path}")
         print(f"Графики (диплом): {THESIS_DIR}")
         print(f"Графики (preview): {ctx.plots_dir}")
-        print(f"Пересечение δ=0 (ε₀): {crossings}")
+        print(f"Пересечение δ=0 (ε₀) по парам: {crossings}")
+        print(f"Пересечение δ̄=0 (ε₀): {eps0_all}")
         print(f"Пересечение δ̄=0 (d₀): {d0}")
     finally:
         ctx.conf_path.write_text(ctx.conf_backup.read_text(encoding="utf-8"), encoding="utf-8")

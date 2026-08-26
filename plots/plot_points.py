@@ -42,6 +42,7 @@ import urllib.request
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize, to_hex
+from matplotlib.transforms import ScaledTranslation
 import numpy as np
 
 # #region agent log
@@ -169,6 +170,9 @@ def auto_plot_ylim(
 
 
 HTML_SERIES_FIGSIZE = (10, 6)
+# 8usual / prez: широкий прямоугольник; TRAJECTORIES_COMPACT — авто-деления t и подписи k/d.
+TRAJECTORIES_WIDE_FIGSIZE = (22, 5)
+TRAJECTORIES_WIDE_VIEW_CONFIGS = frozenset({"8usual"})
 HTML_LEGEND_RIGHT = 0.76
 
 # Шрифты: plots/index.html (компактнее) vs doc/images (крупнее для презентации).
@@ -1151,10 +1155,23 @@ def get_node_ids_from_config(root_dir: Path) -> list[int]:
         return []
 
     nodes = cfg.get("nodes", [])
-    # Берём все узлы, включая закреплённые
-    ids = [int(n["id"]) for n in nodes]
+    ids = [int(n["id"]) for n in nodes if not n.get("fixed", False)]
     ids = sorted(set(ids))
     return ids
+
+
+def get_fixed_node_ids_from_config(root_dir: Path) -> list[int]:
+    config_name = os.environ.get("CONFIG", "conf")
+    config_path = root_dir / "internal" / "config" / "confs" / f"{config_name}.json"
+    if not config_path.exists():
+        return []
+    try:
+        with config_path.open("r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception:
+        return []
+    nodes = cfg.get("nodes", [])
+    return sorted({int(n["id"]) for n in nodes if n.get("fixed", False)})
 
 
 def get_movable_node_ids_from_config(root_dir: Path) -> list[int]:
@@ -1170,6 +1187,86 @@ def get_movable_node_ids_from_config(root_dir: Path) -> list[int]:
     nodes = cfg.get("nodes", [])
     ids = [int(n["id"]) for n in nodes if not n.get("fixed", False)]
     return sorted(set(ids))
+
+
+def trajectories_wide_view_enabled(config_name: str) -> bool:
+    if env_bool("TRAJECTORIES_WIDE_VIEW", default=False):
+        return True
+    return config_name in TRAJECTORIES_WIDE_VIEW_CONFIGS
+
+
+def trajectories_wide_t_max(root_dir: Path, config_name: str) -> float:
+    custom = env_float_optional("TRAJECTORIES_T_MAX")
+    if custom is not None and custom > 0:
+        return custom
+    t_end = get_simulation_t_from_config(root_dir)
+    return float(t_end) if t_end is not None and t_end > 0 else 50.0
+
+
+def trajectories_wide_t_step(t_max: float) -> float:
+    custom = env_float_optional("TRAJECTORIES_T_STEP")
+    if custom is not None and custom > 0:
+        return custom
+    return 100.0 if t_max <= 200.0 else 200.0
+
+
+def trajectories_wide_xticks(t_max: float) -> list[float]:
+    step = trajectories_wide_t_step(t_max)
+    ticks = [float(x) for x in np.arange(0.0, t_max, step)]
+    if not ticks:
+        ticks = [0.0]
+    if abs(ticks[-1] - t_max) > 1e-9:
+        ticks.append(float(t_max))
+    return ticks
+
+
+def trajectories_compact_view_enabled() -> bool:
+    return env_bool("TRAJECTORIES_COMPACT", default=False)
+
+
+def trajectories_plot_settings(
+    root_dir: Path, config_name: str, thesis_export: bool
+) -> tuple[bool, float | None, tuple[float, float], bool]:
+    """(wide, t_max, figsize, compact) — только для trajectories.png."""
+    if trajectories_compact_view_enabled():
+        t_max = trajectories_wide_t_max(root_dir, config_name)
+        return False, t_max, TRAJECTORIES_WIDE_FIGSIZE, True
+    wide = thesis_export and trajectories_wide_view_enabled(config_name)
+    t_max = trajectories_wide_t_max(root_dir, config_name) if wide else None
+    figsize = TRAJECTORIES_WIDE_FIGSIZE if wide else HTML_SERIES_FIGSIZE
+    return wide, t_max, figsize, False
+
+
+def series_wide_plot_settings(
+    root_dir: Path, config_name: str, thesis_export: bool
+) -> tuple[bool, float | None, tuple[float, float]]:
+    wide = thesis_export and trajectories_wide_view_enabled(config_name)
+    t_max = trajectories_wide_t_max(root_dir, config_name) if wide else None
+    figsize = TRAJECTORIES_WIDE_FIGSIZE if wide else HTML_SERIES_FIGSIZE
+    return wide, t_max, figsize
+
+
+def clip_series_to_t_max(
+    t: np.ndarray, y: np.ndarray, t_max: float | None
+) -> tuple[np.ndarray, np.ndarray]:
+    if t_max is None or t.size == 0:
+        return t, y
+    mask = t <= t_max + 1e-12
+    return t[mask], y[mask]
+
+
+def wide_xlim_kwargs(wide: bool, t_max: float | None) -> dict:
+    if wide and t_max is not None:
+        return {"xlim": (0.0, t_max), "xticks": trajectories_wide_xticks(t_max)}
+    return {}
+
+
+def save_series_figure(path: Path, wide: bool, *, pad_inches: float = 0.06) -> None:
+    if wide:
+        plt.gcf().subplots_adjust(left=0.07, right=HTML_LEGEND_RIGHT, top=0.96, bottom=0.12)
+        plt.savefig(path, dpi=200, bbox_inches="tight", pad_inches=0.04, facecolor="white")
+    else:
+        plt.savefig(path, dpi=200, bbox_inches="tight", pad_inches=pad_inches)
 
 
 def parse_mean_delta_by_node_from_log(text: str) -> dict[int, float]:
@@ -1197,6 +1294,231 @@ def env_float_optional(name: str) -> float | None:
         return float(raw)
     except ValueError:
         return None
+
+
+def _parse_series_annot_at_suffix(
+    at_suffix: str,
+) -> tuple[float | None, bool, bool, float, float]:
+    """@200, @200^, @200v, @200~0.08, @200~p4, @200v~p4 — t, выравнивание, сдвиг."""
+    text_above = False
+    text_below = False
+    y_data_offset = 0.0
+    y_pixel_offset = 0.0
+    suffix = at_suffix.strip()
+    if "~" in suffix:
+        suffix, off_raw = suffix.rsplit("~", 1)
+        off_raw = off_raw.strip()
+        if off_raw.startswith("p"):
+            try:
+                y_pixel_offset = float(off_raw[1:])
+            except ValueError:
+                y_pixel_offset = 0.0
+        else:
+            try:
+                y_data_offset = float(off_raw)
+            except ValueError:
+                y_data_offset = 0.0
+    if suffix.endswith("^"):
+        text_above = True
+        suffix = suffix[:-1].strip()
+    elif suffix.endswith("v"):
+        text_below = True
+        suffix = suffix[:-1].strip()
+    try:
+        t_pos = float(suffix)
+    except ValueError:
+        t_pos = None
+    return t_pos, text_above, text_below, y_data_offset, y_pixel_offset
+
+
+def interblade_phase_reference_annotations() -> list[
+    tuple[str, float, float | None, bool, bool, float, float]
+]:
+    """Из INTERBLADE_PHASE_ANNOT_LINES: «-135@200~p4,90@200v~p4,135@550» (^ — сверху, v — снизу)."""
+    raw = env_optional("INTERBLADE_PHASE_ANNOT_LINES")
+    if raw:
+        out: list[tuple[str, float, float | None, bool, bool, float, float]] = []
+        for part in raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            t_pos: float | None = None
+            text_above = False
+            text_below = False
+            y_data_offset = 0.0
+            y_pixel_offset = 0.0
+            val_part = part
+            if "@" in part:
+                val_part, at_suffix = part.rsplit("@", 1)
+                t_pos, text_above, text_below, y_data_offset, y_pixel_offset = (
+                    _parse_series_annot_at_suffix(at_suffix)
+                )
+            annot_str = val_part.strip()
+            try:
+                annot_val = float(annot_str)
+            except ValueError:
+                continue
+            out.append(
+                (
+                    annot_str,
+                    annot_val,
+                    t_pos,
+                    text_above,
+                    text_below,
+                    y_data_offset,
+                    y_pixel_offset,
+                )
+            )
+        return out
+
+    out = []
+    for env_name in ("INTERBLADE_PHASE_ANNOT_VALUE", "INTERBLADE_PHASE_ANNOT_VALUE2"):
+        annot_str = env_optional(env_name)
+        annot_val = env_float_optional(env_name)
+        if annot_str is not None and annot_val is not None:
+            out.append((annot_str, annot_val, None, False, False, 0.0, 0.0))
+    return out
+
+
+def draw_interblade_phase_reference_lines(
+    ax,
+    annotations: list[tuple[str, float, float | None, bool, bool, float, float]],
+    *,
+    ann_fs: float,
+) -> None:
+    if not annotations:
+        return
+    ymin, ymax = ax.get_ylim()
+    ref_vals = [v for _, v, _, _, _, _, _ in annotations]
+    lo = min([ymin, *ref_vals])
+    hi = max([ymax, *ref_vals])
+    pad = max((hi - lo) * 0.05, 5.0)
+    ax.set_ylim(lo - pad, hi + pad)
+
+    x_left, x_right = ax.get_xlim()
+    x_default = x_right - 0.03 * (x_right - x_left)
+    fig = ax.figure
+    for (
+        annot_str,
+        annot_val,
+        t_pos,
+        text_above,
+        text_below,
+        y_data_offset,
+        y_pixel_offset,
+    ) in annotations:
+        ax.axhline(
+            annot_val,
+            color="0.45",
+            linestyle="--",
+            linewidth=1.2,
+            alpha=0.85,
+            zorder=1,
+        )
+        x_text = t_pos if t_pos is not None else x_default
+        y_text = annot_val - y_data_offset
+        if text_above:
+            va = "bottom"
+        elif text_below:
+            va = "top"
+        else:
+            va = "bottom" if annot_val >= 0 else "top"
+        text_kwargs = dict(
+            fontsize=ann_fs,
+            va=va,
+            ha="left" if t_pos is not None else "right",
+            color="0.25",
+            clip_on=True,
+        )
+        label = rf"$\Delta\varphi = {annot_str}°$"
+        if y_pixel_offset != 0:
+            trans = ax.transData + ScaledTranslation(0, -y_pixel_offset, fig.dpi_scale_trans)
+            ax.text(x_text, y_text, label, transform=trans, **text_kwargs)
+        else:
+            ax.text(x_text, y_text, label, **text_kwargs)
+
+
+def decrement_reference_pairs() -> list[tuple[str, str, float, float, float | None, bool, float]]:
+    """Пары (δ, δ₀) из DECREMENT_ANNOT_PAIRS: «1.078:0.123@200,-1.078:-0.123@600^,-1.483:0.171@200~0.08»."""
+    raw = env_optional("DECREMENT_ANNOT_PAIRS")
+    if not raw:
+        return []
+    out: list[tuple[str, str, float, float, float | None, bool, float]] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        t_pos: float | None = None
+        text_above = False
+        y_text_offset = 0.0
+        if "@" in part:
+            part, at_suffix = part.rsplit("@", 1)
+            at_suffix = at_suffix.strip()
+            if at_suffix.endswith("^"):
+                text_above = True
+                at_suffix = at_suffix[:-1].strip()
+            t_raw = at_suffix
+            if "~" in at_suffix:
+                t_raw, off_raw = at_suffix.split("~", 1)
+                try:
+                    y_text_offset = float(off_raw.strip())
+                except ValueError:
+                    y_text_offset = 0.0
+            try:
+                t_pos = float(t_raw.strip())
+            except ValueError:
+                t_pos = None
+        if ":" not in part:
+            continue
+        delta_str, delta0_str = (s.strip() for s in part.split(":", 1))
+        try:
+            delta_val = float(delta_str)
+            delta0_val = float(delta0_str)
+        except ValueError:
+            continue
+        out.append((delta_str, delta0_str, delta_val, delta0_val, t_pos, text_above, y_text_offset))
+    return out
+
+
+def draw_decrement_reference_lines(
+    ax, pairs: list[tuple[str, str, float, float, float | None, bool, float]], *, ann_fs: float
+) -> None:
+    if not pairs:
+        return
+    ref_vals = [v for _, _, d, d0, _, _, _ in pairs for v in (d, d0)]
+    ymin, ymax = ax.get_ylim()
+    lo = min([ymin, *ref_vals])
+    hi = max([ymax, *ref_vals])
+    pad = max((hi - lo) * 0.05, 0.08)
+    ax.set_ylim(lo - pad, hi + pad)
+
+    x_left, x_right = ax.get_xlim()
+    x_default = x_left + 0.03 * (x_right - x_left)
+    for delta_str, delta0_str, delta_val, _delta0_val, t_pos, text_above, y_text_offset in pairs:
+        ax.axhline(
+            delta_val,
+            color="0.45",
+            linestyle="--",
+            linewidth=1.2,
+            alpha=0.85,
+            zorder=1,
+        )
+        x_text = t_pos if t_pos is not None else x_default
+        y_text = delta_val - y_text_offset
+        if text_above:
+            va = "bottom"
+        else:
+            va = "bottom" if delta_val >= 0 else "top"
+        ax.text(
+            x_text,
+            y_text,
+            rf"$\delta \approx {delta_str}\quad \delta_0 \approx {delta0_str}$",
+            fontsize=ann_fs,
+            va=va,
+            ha="left",
+            color="0.25",
+            clip_on=True,
+        )
 
 
 def mean_delta_from_decrement_points_file(path: Path) -> float | None:
@@ -1317,6 +1639,10 @@ def generate_plots_and_html():
     plots_dir.mkdir(parents=True, exist_ok=True)
     movable_node_ids = get_movable_node_ids_from_config(root_dir)
     thesis_export = thesis_export_enabled(plots_dir, root_dir)
+    config_name = os.environ.get("CONFIG", "conf").strip()
+    series_wide, series_t_max, series_wide_figsize = series_wide_plot_settings(
+        root_dir, config_name, thesis_export
+    )
     if thesis_export:
         thesis_plot_xlim, thesis_data_xlim, thesis_xticks = thesis_time_axis(root_dir)
 
@@ -1326,19 +1652,27 @@ def generate_plots_and_html():
         except OSError:
             plt.style.use("ggplot")
 
-    # ---------- Траектории graph_points*.txt ----------
+    # ---------- Траектории graph_points*.txt (только подвижные лопатки) ----------
     traj_node_ids = movable_node_ids or get_node_ids_from_config(root_dir)
+    fixed_node_ids = set(get_fixed_node_ids_from_config(root_dir))
 
     if traj_node_ids:
         graph_files = []
         for node_id in traj_node_ids:
+            if node_id in fixed_node_ids:
+                continue
             path = data_dir / f"graph_points{node_id}.txt"
             if path.exists():
                 graph_files.append(path)
             else:
                 print(f"Файл для узла {node_id} не найден: {path}")
     else:
-        graph_files = sorted(data_dir.glob("graph_points*.txt"))
+        graph_files = []
+        for path in sorted(data_dir.glob("graph_points*.txt")):
+            m = re.match(r"^graph_points(\d+)$", path.stem)
+            if m and int(m.group(1)) in fixed_node_ids:
+                continue
+            graph_files.append(path)
 
     traj_img_name = "trajectories.png"
     phase_img_name = "interblade_phase.png"
@@ -1362,7 +1696,11 @@ def generate_plots_and_html():
     phase_stats_rows: list[tuple[str, float, float]] = []
 
     if (not PARALLEL_ONLY_DECREMENT_MAPS) and graph_files:
-        plt.figure(figsize=HTML_SERIES_FIGSIZE)
+        traj_wide, traj_t_max, traj_figsize, traj_compact = trajectories_plot_settings(
+            root_dir, config_name, thesis_export
+        )
+
+        plt.figure(figsize=traj_figsize)
         colors = plt.cm.tab10.colors
         traj_y: list[np.ndarray] = []
 
@@ -1370,13 +1708,52 @@ def generate_plots_and_html():
             t, x = load_two_column_txt(path)
             if t.size == 0:
                 continue
+            if traj_t_max is not None:
+                t, x = clip_series_to_t_max(t, x, traj_t_max)
+                if t.size == 0:
+                    continue
             label = blade_label_from_stem(path.stem, "graph_points")
             traj_y.append(x)
             plt.plot(t, x, label=label, color=colors[idx % len(colors)])
 
-        finalize_html_series_plot(ylabel="x", y_series=traj_y, thesis_export=thesis_export)
+        traj_finalize: dict = {
+            "ylabel": "x",
+            "y_series": traj_y,
+            "thesis_export": thesis_export,
+        }
+        if traj_t_max is not None:
+            if traj_compact:
+                traj_finalize["xlim"] = (0.0, traj_t_max)
+            elif traj_wide:
+                traj_finalize.update(wide_xlim_kwargs(True, traj_t_max))
+        finalize_html_series_plot(**traj_finalize)
+        if traj_t_max is not None and (traj_wide or traj_compact):
+            k_plus = env_optional("TRAJECTORIES_K_PLUS") or (
+                "0.05" if traj_compact else "0.25"
+            )
+            k_minus = env_optional("TRAJECTORIES_K_MINUS") or (
+                "-0.05" if traj_compact else "-0.25"
+            )
+            d_val = env_optional("TRAJECTORIES_D")
+            ax = plt.gca()
+            ann_fs = THESIS_TICK_LABEL_FONTSIZE if thesis_export else HTML_TICK_LABEL_FONTSIZE
+            ymin, ymax = ax.get_ylim()
+            y_span = ymax - ymin if ymax > ymin else 1.0
+            annot_parts = [rf"$k^+ = {k_plus}$", rf"$k^- = {k_minus}$"]
+            if d_val:
+                annot_parts.append(rf"$d = {d_val}$")
+            ax.text(
+                traj_t_max * 0.04,
+                ymin + 0.06 * y_span,
+                "     ".join(annot_parts),
+                fontsize=ann_fs + (1 if traj_compact else 3),
+                ha="left",
+                va="bottom",
+                color="black",
+                clip_on=True,
+            )
         out_traj = plots_dir / traj_img_name
-        plt.savefig(out_traj, dpi=200, bbox_inches="tight", pad_inches=0.06)
+        save_series_figure(out_traj, traj_wide or traj_compact)
         plt.close()
     elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файлы graph_points*.txt не найдены в {data_dir}")
@@ -1413,7 +1790,7 @@ def generate_plots_and_html():
 
     # ---------- Межлопаточная фаза Δφ(t) из interblade_phase_points*.txt (Go, single run) ----------
     if (not PARALLEL_ONLY_DECREMENT_MAPS) and movable_node_ids:
-        plt.figure(figsize=HTML_SERIES_FIGSIZE)
+        plt.figure(figsize=series_wide_figsize)
         colors = plt.cm.tab10.colors
         interblade_y: list[np.ndarray] = []
         for idx, node_id in enumerate(movable_node_ids):
@@ -1423,6 +1800,9 @@ def generate_plots_and_html():
                 print(f"Файл не найден: {path}")
                 continue
             t_ph, ph = load_two_column_txt(path)
+            if t_ph.size == 0:
+                continue
+            t_ph, ph = clip_series_to_t_max(t_ph, ph, series_t_max)
             if t_ph.size == 0:
                 continue
             label = f"φ({neighbor_id})−φ({node_id})"
@@ -1441,7 +1821,9 @@ def generate_plots_and_html():
                 "y_series": interblade_y,
                 "thesis_export": thesis_export,
             }
-            if thesis_export:
+            if series_wide:
+                phase_finalize.update(wide_xlim_kwargs(True, series_t_max))
+            elif thesis_export:
                 phase_finalize.update(
                     xlim=thesis_plot_xlim,
                     ylim=THESIS_PHASE_YLIM,
@@ -1450,38 +1832,14 @@ def generate_plots_and_html():
                 )
             finalize_html_series_plot(**phase_finalize)
 
-            phase_annot_str = env_optional("INTERBLADE_PHASE_ANNOT_VALUE")
-            phase_annot = env_float_optional("INTERBLADE_PHASE_ANNOT_VALUE")
-            if phase_annot is not None and phase_annot_str is not None:
-                ax = plt.gca()
-                ax.axhline(
-                    phase_annot,
-                    color="0.45",
-                    linestyle="--",
-                    linewidth=1.2,
-                    alpha=0.85,
-                    zorder=1,
-                )
+            phase_annotations = interblade_phase_reference_annotations()
+            if phase_annotations:
                 ann_fs = THESIS_TICK_LABEL_FONTSIZE if thesis_export else HTML_TICK_LABEL_FONTSIZE
-                x_left, x_right = ax.get_xlim()
-                x_text = x_right - 0.03 * (x_right - x_left)
-                ax.text(
-                    x_text,
-                    phase_annot,
-                    rf"$\Delta\varphi = {phase_annot_str}°$",
-                    fontsize=ann_fs,
-                    va="bottom",
-                    ha="right",
-                    color="0.25",
-                    clip_on=True,
+                draw_interblade_phase_reference_lines(
+                    plt.gca(), phase_annotations, ann_fs=ann_fs
                 )
 
-            plt.savefig(
-                plots_dir / phase_img_name,
-                dpi=200,
-                bbox_inches="tight",
-                pad_inches=0.08,
-            )
+            save_series_figure(plots_dir / phase_img_name, series_wide, pad_inches=0.08)
         plt.close()
 
     # ---------- Декремент затухания по периодам decrement_points*.txt ----------
@@ -1496,12 +1854,15 @@ def generate_plots_and_html():
 
     dec_has_data = False
     if (not PARALLEL_ONLY_DECREMENT_MAPS) and dec_files:
-        plt.figure(figsize=HTML_SERIES_FIGSIZE)
+        plt.figure(figsize=series_wide_figsize)
         colors = plt.cm.tab10.colors
         dec_y: list[np.ndarray] = []
 
         for idx, path in enumerate(dec_files):
             t, d = load_two_column_txt(path)
+            if t.size == 0:
+                continue
+            t, d = clip_series_to_t_max(t, d, series_t_max)
             if t.size == 0:
                 continue
             dec_has_data = True
@@ -1513,53 +1874,22 @@ def generate_plots_and_html():
         dec_finalize: dict = {"ylabel": "δ", "y_series": dec_y, "thesis_export": thesis_export}
         if dec_ylim is not None:
             dec_finalize["ylim"] = dec_ylim
-        if thesis_export:
+        if series_wide:
+            dec_finalize.update(wide_xlim_kwargs(True, series_t_max))
+        elif thesis_export:
             dec_finalize.update(
                 xlim=thesis_plot_xlim,
                 xticks=thesis_xticks,
             )
         finalize_html_series_plot(**dec_finalize)
 
-        delta_annot_str = env_optional("DECREMENT_ANNOT_DELTA")
-        delta0_annot_str = env_optional("DECREMENT_ANNOT_DELTA0")
-        delta_annot = env_float_optional("DECREMENT_ANNOT_DELTA")
-        if delta_annot is not None and delta_annot_str is not None:
-            ax = plt.gca()
-            ax.axhline(
-                delta_annot,
-                color="0.45",
-                linestyle="--",
-                linewidth=1.2,
-                alpha=0.85,
-                zorder=1,
-            )
+        delta_annot_pairs = decrement_reference_pairs()
+        if delta_annot_pairs:
             ann_fs = THESIS_TICK_LABEL_FONTSIZE if thesis_export else HTML_TICK_LABEL_FONTSIZE
-            x_left, x_right = ax.get_xlim()
-            x_text = x_left + 0.03 * (x_right - x_left)
-            ax.text(
-                x_text,
-                delta_annot,
-                rf"$\delta \approx {delta_annot_str}$",
-                fontsize=ann_fs,
-                va="bottom",
-                ha="left",
-                color="0.25",
-                clip_on=True,
-            )
-            if delta0_annot_str is not None:
-                ax.text(
-                    x_text,
-                    delta_annot,
-                    rf"$\delta_0 \approx {delta0_annot_str}$",
-                    fontsize=ann_fs,
-                    va="top",
-                    ha="left",
-                    color="0.25",
-                    clip_on=True,
-                )
+            draw_decrement_reference_lines(plt.gca(), delta_annot_pairs, ann_fs=ann_fs)
 
         out_dec = plots_dir / dec_img_name
-        plt.savefig(out_dec, dpi=200, bbox_inches="tight", pad_inches=0.06)
+        save_series_figure(out_dec, series_wide)
         plt.close()
     elif not PARALLEL_ONLY_DECREMENT_MAPS:
         print(f"Файлы decrement_points*.txt не найдены в {data_dir}")

@@ -47,18 +47,24 @@ done
 if $PREZ; then
     OUT_DIR="$ROOT_DIR/doc/images/prez"
     export PREZ_EXPORT_ONLY=true
-    # Подписи на decrement_deltas.png — поменяйте значения под расчёт.
-    : "${DECREMENT_ANNOT_DELTA:=-0.313}"
-    : "${DECREMENT_ANNOT_DELTA0:=-0.04994}"
-    export DECREMENT_ANNOT_DELTA DECREMENT_ANNOT_DELTA0
-    : "${INTERBLADE_PHASE_ANNOT_VALUE:=90}"
-    export INTERBLADE_PHASE_ANNOT_VALUE
+    # Подписи на decrement_deltas.png — пары δ:δ₀ через запятую.
+    : "${DECREMENT_ANNOT_PAIRS:=1.078:0.123@200,-1.078:-0.123@600^,-1.483:0.171@200~0.08}"
+    export DECREMENT_ANNOT_PAIRS
+    : "${INTERBLADE_PHASE_ANNOT_LINES:=-135@200~p4,90@200v~p4,135@550}"
+    export INTERBLADE_PHASE_ANNOT_LINES
+    export TRAJECTORIES_COMPACT=true
+    export TRAJECTORIES_K_PLUS=0.05
+    export TRAJECTORIES_K_MINUS=-0.05
+    export TRAJECTORIES_D=0.04
 else
     OUT_DIR="$ROOT_DIR/doc/images"
     unset PREZ_EXPORT_ONLY
-    unset DECREMENT_ANNOT_DELTA
-    unset DECREMENT_ANNOT_DELTA0
-    unset INTERBLADE_PHASE_ANNOT_VALUE
+    unset DECREMENT_ANNOT_PAIRS
+    unset INTERBLADE_PHASE_ANNOT_LINES
+    unset TRAJECTORIES_COMPACT
+    unset TRAJECTORIES_K_PLUS
+    unset TRAJECTORIES_K_MINUS
+    unset TRAJECTORIES_D
 fi
 export PLOTS_OUTPUT_DIR="$OUT_DIR"
 

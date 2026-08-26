@@ -47,21 +47,21 @@
         "d": 0,
         "from": 1,
         "k": 1,
-        "rest": -1,
+        "rest": 0,
         "to": 4
       },
       {
         "d": 0,
         "from": 2,
         "k": 1,
-        "rest": -2,
+        "rest": 0,
         "to": 4
       },
       {
         "d": 0,
         "from": 3,
         "k": 1,
-        "rest": -3,
+        "rest": 0,
         "to": 4
       }
     ],
@@ -71,29 +71,29 @@
         "fixed": false,
         "id": 0,
         "mass": 1,
-        "position": 0.5,
-        "velocity": 0
+        "position": 1,
+        "velocity": 0.04993777
       },
       {
         "fixed": false,
         "id": 1,
         "mass": 1,
-        "position": 1,
-        "velocity": 0
+        "position": 0,
+        "velocity": -1.00124611
       },
       {
         "fixed": false,
         "id": 2,
         "mass": 1,
-        "position": 2,
-        "velocity": 0
+        "position": -1,
+        "velocity": -0.04993777
       },
       {
         "fixed": false,
         "id": 3,
         "mass": 1,
-        "position": 3,
-        "velocity": 0
+        "position": -0,
+        "velocity": 1.00124611
       },
       {
         "fixed": true,
@@ -105,7 +105,7 @@
     ],
     "times": {
       "dt": 0.001,
-      "t": 120,
+      "t": 50,
       "t0": 0
     }
   }

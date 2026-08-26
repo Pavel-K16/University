@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,6 +31,7 @@ ROOT_DIR = SCRIPT_DIR.parent
 SCRIPTS_DIR = ROOT_DIR / "scripts"
 DATA_DIR = ROOT_DIR / "wolfram" / "paramsAndPoints"
 CONFS_DIR = ROOT_DIR / "internal" / "config" / "confs"
+CACHE_DIR = ROOT_DIR / "wolfram" / "elementary_solution"
 DEFAULT_OUT_DIR = ROOT_DIR / "doc" / "images"
 
 NUM_COLOR = "#E41A1C"
@@ -38,6 +40,10 @@ AN_COLOR = "black"
 AN_WIDTH = 2.2
 AN_DASH_ON = 10
 AN_DASH_OFF = 5
+AXIS_LABEL_FONTSIZE = 21
+TICK_LABEL_FONTSIZE = 18
+LEGEND_FONTSIZE = 16
+CASE_TITLE_FONTSIZE = 20
 
 
 @dataclass
@@ -101,12 +107,23 @@ def run_nsolv(config_name: str) -> None:
     )
 
 
+def cached_trajectory_path(config_name: str) -> Path:
+    return CACHE_DIR / f"{config_name}_graph_points0.txt"
+
+
 def load_case(config_name: str, *, run_solver: bool) -> CaseData:
     params = load_case_params(config_name)
+    cache_path = cached_trajectory_path(config_name)
     if run_solver:
         print(f"Расчёт CONFIG={config_name} …")
         run_nsolv(config_name)
-    t_num, x_num = load_trajectory(DATA_DIR / "graph_points0.txt")
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(DATA_DIR / "graph_points0.txt", cache_path)
+    elif not cache_path.exists():
+        raise FileNotFoundError(
+            f"Нет кэша {cache_path}; запустите без --no-run или сначала выполните расчёт."
+        )
+    t_num, x_num = load_trajectory(cache_path)
     n_dense = max(8000, len(t_num) * 4)
     t_an = np.linspace(0.0, params["t_end"], n_dense)
     x_an = analytic_solution(
@@ -142,6 +159,21 @@ def _legend_handles() -> list[Line2D]:
     return [h_an, h_num]
 
 
+def add_case_title(ax: plt.Axes, d_value: float) -> None:
+    x_pos = 0.79 if d_value < 0 else 0.97
+    ax.text(
+        x_pos,
+        0.94,
+        rf"$D = {d_value:.1f}$",
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=CASE_TITLE_FONTSIZE,
+        color="black",
+        clip_on=False,
+    )
+
+
 def plot_panel(
     ax: plt.Axes,
     case: CaseData,
@@ -162,11 +194,18 @@ def plot_panel(
         case.x_an,
         color=AN_COLOR,
         linewidth=AN_WIDTH,
-        zorder=4,
-        clip_on=False,
+        zorder=3,
+        clip_on=True,
     )
     _apply_analytical_dash(line_an)
-    apply_mathematica_style(ax, t_max=case.t_end, y_lim=y_lim)
+    apply_mathematica_style(
+        ax,
+        t_max=case.t_end,
+        y_lim=y_lim,
+        label_fontsize=AXIS_LABEL_FONTSIZE,
+        tick_fontsize=TICK_LABEL_FONTSIZE,
+    )
+    add_case_title(ax, case.d_value)
     if show_legend:
         ax.legend(
             _legend_handles(),
@@ -175,7 +214,7 @@ def plot_panel(
             bbox_to_anchor=(1.06, 1.0),
             frameon=True,
             fancybox=True,
-            fontsize=11,
+            fontsize=LEGEND_FONTSIZE,
             borderaxespad=0.0,
             handlelength=3.0,
             handleheight=1.4,
@@ -231,9 +270,9 @@ def main() -> None:
     case_neg = load_case("1blade_dneg01", run_solver=run_solver)
 
     save_single(case_pos, out / "damping_D0.1.png", y_lim=(-2.2, 2.2))
-    save_single(case_neg, out / "damping_D-0.1.png", y_lim=None)
+    save_single(case_neg, out / "damping_D-0.1.png", y_lim=(-22.0, 22.0))
     save_combined(
-        [(case_pos, (-2.2, 2.2)), (case_neg, None)],
+        [(case_pos, (-2.2, 2.2)), (case_neg, (-22.0, 22.0))],
         out / "damping_comparison.png",
     )
 
